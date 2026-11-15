@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.venv/
+venv/
+datasets_cache/
+models/
+dataset_generator.py
+model_seg.py
+train_and_eval.py
+yolo11_foodseg_template.py

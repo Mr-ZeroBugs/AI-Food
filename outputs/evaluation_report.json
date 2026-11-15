@@ -1,0 +1,84 @@
+{
+  "device": "NVIDIA GeForce RTX 4060",
+  "cuda_used": true,
+  "dataset": "Multi-Dataset Real Benchmark (FoodSeg103 + Google Nutrition5k + UEC-FoodPix + THFOOD-50)",
+  "training_corpus_size": 138818,
+  "test_samples": 200,
+  "inference_latency_ms": 258.81,
+  "inference_fps": 3.86,
+  "overall": {
+    "mIoU_pct": 67.99,
+    "pixel_acc_pct": 87.54,
+    "MAE_pct_points": 7.07,
+    "MAPE_pct": 30.92,
+    "balance_211_acc_pct": 85.0
+  },
+  "scenarios": {
+    "controlled": {
+      "n_samples": 25,
+      "mIoU_pct": 71.15,
+      "pixel_acc_pct": 87.88,
+      "MAE_pct_points": 8.28,
+      "MAPE_pct": 38.21,
+      "balance_211_acc_pct": 92.0
+    },
+    "semi_mixed": {
+      "n_samples": 17,
+      "mIoU_pct": 61.59,
+      "pixel_acc_pct": 85.9,
+      "MAE_pct_points": 7.87,
+      "MAPE_pct": 29.79,
+      "balance_211_acc_pct": 76.47
+    },
+    "angle_lighting": {
+      "n_samples": 18,
+      "mIoU_pct": 70.34,
+      "pixel_acc_pct": 88.76,
+      "MAE_pct_points": 4.64,
+      "MAPE_pct": 21.87,
+      "balance_211_acc_pct": 83.33
+    }
+  },
+  "datasets_breakdown": {
+    "foodseg103": {
+      "dataset": "EduardoPacheco/FoodSeg103 (Real Validation)",
+      "corpus_size": 7118,
+      "n_samples": 60,
+      "mIoU_pct": 67.99,
+      "pixel_acc_pct": 87.54,
+      "MAE_pct_points": 7.07,
+      "MAPE_pct": 30.92,
+      "balance_211_acc_pct": 85.0
+    },
+    "nutrition5k": {
+      "corpus_size": 5000,
+      "dataset": "Google Nutrition5k (Laboratory-Weighed Grams)",
+      "n_samples": 50,
+      "gram_MAE_pct_points": 11.05,
+      "gram_corr_r": 0.657,
+      "local_group_recall_pct": 63.83,
+      "veg_balance_agreement_pct": 78.0
+    },
+    "uecfoodpix": {
+      "corpus_size": 10000,
+      "dataset": "UEC-FoodPix Complete (103 Asian Meals)",
+      "n_samples": 40,
+      "fg_bg_mIoU_pct": 80.92,
+      "food_mask_IoU_pct": 75.83,
+      "pixel_acc_pct": 90.28
+    },
+    "thfood50": {
+      "corpus_size": 15700,
+      "dataset": "THFOOD-50 Eval-500 (All 50 Thai Dishes)",
+      "n_samples": 50,
+      "top1_thai_acc_pct": 90.0,
+      "top3_thai_acc_pct": 96.0,
+      "mean_food_coverage_pct": 45.35
+    },
+    "food101_backbone": {
+      "dataset": "ETHZ Food-101 (Pretrained Swin-Base Backbone)",
+      "corpus_size": 101000,
+      "classes": 101
+    }
+  }
+}
