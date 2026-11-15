@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+datasets_cache/
+models/
+*.pt
+*.parquet
+eval_real_foodseg103.py
+real_foodseg103_engine.py
+dataset_generator.py
+model_seg.py
+train_and_eval.py
+yolo11_foodseg_template.py
+requirements-ai.txt
+Dockerfile

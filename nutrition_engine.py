@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from typing import Dict, List, Optional, Tuple
-import cv2
 import numpy as np
+from PIL import Image
 
 
 CLASS_NAMES: List[str] = [
@@ -152,10 +152,12 @@ def analyze_plate_from_mask(
 
     if depth_map is not None:
         if depth_map.shape != mask.shape:
-            depth_map = cv2.resize(
-                depth_map.astype(np.float32),
-                (mask.shape[1], mask.shape[0]),
-                interpolation=cv2.INTER_LINEAR,
+            depth_map = np.asarray(
+                Image.fromarray(depth_map.astype(np.float32)).resize(
+                    (mask.shape[1], mask.shape[0]),
+                    resample=Image.BILINEAR,
+                ),
+                dtype=np.float32,
             )
         totals_25d, _ = _accumulate_groups(mask, weights_map=np.clip(depth_map, 0.05, None))
         ratios_25d = _normalize_to_pct(totals_25d)
