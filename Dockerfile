@@ -15,7 +15,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt requirements-ai.txt ./
 RUN pip install --no-cache-dir -r requirements-ai.txt
 
-COPY app.py nutrition_engine.py food_taxonomy.py real_foodseg103_engine.py real_foodseg103_onnx.py lightweight_5group_segmenter.py ./
+COPY app.py nutrition_engine.py food_taxonomy.py depth_volume_engine.py segformer_5group_engine.py real_foodseg103_engine.py real_foodseg103_onnx.py lightweight_5group_segmenter.py ./
+COPY models_onnx/segformer_5group_int8.onnx.gz models_onnx/depth_v2_s_int8.onnx.gz ./models_onnx/
 COPY static/ ./static/
 COPY real_presets/ ./real_presets/
 COPY outputs/ ./outputs/

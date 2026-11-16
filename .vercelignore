@@ -5,7 +5,16 @@ models/
 *.pt
 *.parquet
 eval_real_foodseg103.py
+models_onnx/m2f_512_int8.onnx.gz
+models_onnx/thfood50_int8.onnx.gz
+models_onnx/food101_int8.onnx.gz
+models_onnx/labels.json
+real_foodseg103_onnx.py
 real_foodseg103_engine.py
+real_dataset_builder.py
+train_5group_model.py
+refine_egg_segformer.py
+benchmark_compare.py
 dataset_generator.py
 model_seg.py
 train_and_eval.py

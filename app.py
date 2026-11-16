@@ -100,14 +100,63 @@ if os.path.isdir(OUTPUTS_DIR):
     app.mount("/outputs", StaticFiles(directory=OUTPUTS_DIR), name="outputs")
 
 _STATE: Dict[str, object] = {
+    "segformer_engine": None,
+    "segformer_unavailable": False,
     "real_engine": None,
     "device": None,
     "engine_unavailable": False,
     "onnx_engine": None,
     "onnx_unavailable": False,
+    "depth_engine": None,
+    "depth_unavailable": False,
     "cached_masks": None,
     "cached_meta": None,
 }
+
+
+def _try_get_segformer_engine() -> Optional[object]:
+    """Lazy-load unified Multi-Task SegFormer-B2 5-Group engine (CUDA or INT8 ONNX)."""
+    if os.environ.get("FORCE_LIGHTWEIGHT") == "1":
+        return None
+    if _STATE["segformer_engine"] is not None:
+        return _STATE["segformer_engine"]
+    if _STATE["segformer_unavailable"]:
+        return None
+    try:
+        from segformer_5group_engine import SegFormer5GroupEngine
+
+        prefer_torch = os.environ.get("FORCE_VERCEL_ONNX") != "1"
+        seg_engine = SegFormer5GroupEngine(prefer_torch=prefer_torch)
+        if getattr(seg_engine, "backend", "unavailable") == "unavailable":
+            _STATE["segformer_unavailable"] = True
+            return None
+        _STATE["segformer_engine"] = seg_engine
+        return seg_engine
+    except Exception:
+        traceback.print_exc()
+        _STATE["segformer_unavailable"] = True
+        return None
+
+
+def _try_get_depth_engine() -> Optional[object]:
+    """Lazy-load Depth-Anything-V2-Small engine (PyTorch GPU or INT8 ONNX CPU)."""
+    if os.environ.get("FORCE_LIGHTWEIGHT") == "1":
+        return None
+    if _STATE["depth_engine"] is not None:
+        return _STATE["depth_engine"]
+    if _STATE["depth_unavailable"]:
+        return None
+    try:
+        from depth_volume_engine import DepthVolumeEngine
+
+        prefer_torch = os.environ.get("FORCE_VERCEL_ONNX") != "1"
+        depth_engine = DepthVolumeEngine(prefer_torch=prefer_torch)
+        _STATE["depth_engine"] = depth_engine
+        return depth_engine
+    except Exception:
+        traceback.print_exc()
+        _STATE["depth_unavailable"] = True
+        return None
 
 
 def _try_get_real_engine() -> Tuple[Optional[object], Optional[object]]:
@@ -162,18 +211,17 @@ def _try_get_onnx_engine() -> Optional[object]:
 def _has_onnx_ai_packages() -> bool:
     if os.environ.get("FORCE_LIGHTWEIGHT") == "1":
         return False
-    if _STATE["onnx_engine"] is not None:
+    if _STATE["segformer_engine"] is not None or _STATE["onnx_engine"] is not None:
         return True
-    return (
-        importlib.util.find_spec("onnxruntime") is not None
-        and os.path.exists(os.path.join(BASE_DIR, "models_onnx", "m2f_512_int8.onnx.gz"))
-    )
+    has_seg = os.path.exists(os.path.join(BASE_DIR, "models_onnx", "segformer_5group_int8.onnx.gz"))
+    has_m2f = os.path.exists(os.path.join(BASE_DIR, "models_onnx", "m2f_512_int8.onnx.gz"))
+    return importlib.util.find_spec("onnxruntime") is not None and (has_seg or has_m2f)
 
 
 def _has_full_ai_packages() -> bool:
     if os.environ.get("FORCE_LIGHTWEIGHT") == "1" or os.environ.get("FORCE_VERCEL_ONNX") == "1":
         return False
-    if _STATE["real_engine"] is not None:
+    if _STATE["segformer_engine"] is not None or _STATE["real_engine"] is not None:
         return True
     return (
         importlib.util.find_spec("torch") is not None
@@ -253,17 +301,23 @@ def health_check():
     onnx_ai = _has_onnx_ai_packages()
     ai_backend_url = os.environ.get("AI_BACKEND_URL", "").strip()
     if full_ai:
-        mode = "full-tri-ai"
+        mode = "full-segformer-5group"
     elif ai_backend_url:
         mode = "proxy-ai-backend"
     elif onnx_ai:
-        mode = "onnx-tri-ai"
+        mode = "onnx-segformer-5group"
     else:
         mode = "vercel-serverless"
     return {
         "status": "ok",
         "mode": mode,
         "onnx_ready": onnx_ai,
+        "segformer_ready": os.path.exists(
+            os.path.join(BASE_DIR, "models_onnx", "segformer_5group_int8.onnx.gz")
+        ),
+        "depth_ready": os.path.exists(
+            os.path.join(BASE_DIR, "models_onnx", "depth_v2_s_int8.onnx.gz")
+        ),
         "ai_backend_configured": bool(ai_backend_url),
         "cached_presets": os.path.exists(CACHED_MASKS_PATH),
     }
@@ -309,7 +363,6 @@ class ScanRequest(BaseModel):
 
 @app.post("/api/scan")
 def scan_food(req: ScanRequest):
-    real_engine, device = _try_get_real_engine()
     preset_match = None
 
     if req.preset_id:
@@ -332,65 +385,91 @@ def scan_food(req: ScanRequest):
     else:
         raise HTTPException(status_code=400, detail="กรุณาเลือกเมนูตัวอย่างหรืออัปโหลดภาพอาหาร")
 
-    # 1. Full Tri-AI PyTorch Engine (local GPU/CPU or Hugging Face Spaces Docker)
-    if real_engine is not None and device is not None:
-        (
-            pred_mask,
-            _raw_foodseg_mask,
-            mean_conf,
-            latency_ms,
-            _detailed_ingredients,
-            thai_dish_info,
-        ) = real_engine.predict(img_rgb)  # type: ignore[attr-defined]
-        engine = f"5-Group Semantic AI ({device.type.upper()})"
+    food_prob = 1.0
+    use_cached_preset = (
+        bool(req.preset_id)
+        and (os.environ.get("FORCE_VERCEL_ONNX") == "1" or not _has_full_ai_packages())
+    )
+    cached = _load_cached_preset_prediction(req.preset_id) if use_cached_preset else None
+
+    # 1. Fast precomputed SegFormer-B2 5-Group preset cache when on CPU/Serverless
+    if cached is not None:
+        pred_mask, mean_conf, latency_ms, thai_dish_info = cached
+        food_prob = float(thai_dish_info.get("food_prob", 1.0))
+        engine = "5-Group Semantic AI (Precomputed SegFormer-B2)"
     else:
-        # 2. Pre-computed Tri-AI mask for real presets (instant & exact on Vercel)
-        cached = _load_cached_preset_prediction(req.preset_id) if req.preset_id else None
-        if cached is not None:
-            pred_mask, mean_conf, latency_ms, thai_dish_info = cached
-            engine = "5-Group Semantic AI (Precomputed Tri-AI)"
+        # 2. Primary Unified Multi-Task SegFormer-B2 (CUDA PyTorch locally / INT8 ONNX on Vercel CPU)
+        seg_engine = _try_get_segformer_engine()
+        if seg_engine is not None:
+            pred_mask, mean_conf, latency_ms, food_prob, _soft_ratios = seg_engine.predict(img_rgb)  # type: ignore[attr-defined]
+            backend_name = str(getattr(seg_engine, "backend", "segformer-b2"))
+            is_onnx = "onnx" in backend_name
+            engine = "5-Group Semantic AI (ONNX SegFormer-B2)" if is_onnx else "5-Group Semantic AI (SegFormer-B2 CUDA)"
+            thai_dish_info = {
+                "top1_code": "5groups",
+                "top1_thai": "วิเคราะห์อาหารหลัก 5 หมู่ (Unified SegFormer-B2)",
+                "top1_conf_pct": round(food_prob * 100.0, 1),
+            }
         else:
-            # 3. Optional remote full-AI backend relay (e.g., Hugging Face Spaces)
-            ai_backend_url = os.environ.get("AI_BACKEND_URL", "").strip().rstrip("/")
-            if ai_backend_url:
-                try:
-                    resp = requests.post(
-                        f"{ai_backend_url}/api/scan",
-                        json=req.model_dump(),
-                        timeout=45,
-                    )
-                    if resp.status_code == 200:
-                        return resp.json()
-                except Exception:
-                    pass
-
-            # 4. Real INT8 ONNX Tri-AI Engine (Mask2Former + THFOOD-50 + Food-101) on Vercel CPU
-            onnx_engine = _try_get_onnx_engine()
-            if onnx_engine is not None:
-                (
-                    pred_mask,
-                    _raw_foodseg_mask,
-                    mean_conf,
-                    latency_ms,
-                    _detailed_ingredients,
-                    thai_dish_info,
-                ) = onnx_engine.predict(img_rgb)  # type: ignore[attr-defined]
-                engine = "5-Group Semantic AI (ONNX Tri-AI)"
+            # 3. Secondary Tri-AI Mask2Former fallback (CUDA / remote proxy / ONNX) or Edge fallback
+            real_engine, device = _try_get_real_engine()
+            if real_engine is not None and device is not None:
+                pred_mask, _raw_m, mean_conf, latency_ms, _ings, thai_dish_info = real_engine.predict(img_rgb)  # type: ignore[attr-defined]
+                engine = f"5-Group Semantic AI ({device.type.upper()})"
             else:
-                # 5. Emergency fallback if neither PyTorch nor ONNX Runtime is available
-                pred_mask, mean_conf, latency_ms, thai_dish_info = segment_food_5groups_lightweight(
-                    img_rgb
-                )
-                engine = "5-Group Semantic AI (Serverless Edge)"
+                ai_backend_url = os.environ.get("AI_BACKEND_URL", "").strip().rstrip("/")
+                if ai_backend_url:
+                    try:
+                        resp = requests.post(f"{ai_backend_url}/api/scan", json=req.model_dump(), timeout=45)
+                        if resp.status_code == 200:
+                            return resp.json()
+                    except Exception:
+                        pass
+                onnx_engine = _try_get_onnx_engine()
+                if onnx_engine is not None:
+                    pred_mask, _raw_m, mean_conf, latency_ms, _ings, thai_dish_info = onnx_engine.predict(img_rgb)  # type: ignore[attr-defined]
+                    engine = "5-Group Semantic AI (ONNX Tri-AI)"
+                else:
+                    pred_mask, mean_conf, latency_ms, thai_dish_info = segment_food_5groups_lightweight(img_rgb)
+                    engine = "5-Group Semantic AI (Serverless Edge)"
 
-    # Mild center-weighted relative relief for single-view 2.5D estimation
-    rgb_f = img_rgb.astype(np.float32) / 255.0
-    gray = 0.299 * rgb_f[..., 0] + 0.587 * rgb_f[..., 1] + 0.114 * rgb_f[..., 2]
-    depth_map = np.clip(0.35 + 0.55 * (1.0 - np.abs(gray - 0.5)), 0.15, 1.0)
+    # Real 2.5D Elevation above tilted plate plane (Depth-Anything-V2-Small + Density)
+    depth_engine = _try_get_depth_engine()
+    if depth_engine is not None:
+        depth_map = depth_engine.estimate_elevation_map(img_rgb, pred_mask)  # type: ignore[attr-defined]
+    else:
+        rgb_f = img_rgb.astype(np.float32) / 255.0
+        gray = 0.299 * rgb_f[..., 0] + 0.587 * rgb_f[..., 1] + 0.114 * rgb_f[..., 2]
+        depth_map = np.clip(0.35 + 0.55 * (1.0 - np.abs(gray - 0.5)), 0.15, 1.0)
 
-    analysis = analyze_plate_from_mask(pred_mask, depth_map=depth_map)
+    analysis = analyze_plate_from_mask(pred_mask, depth_map=depth_map, apply_density=True)
+    # Learned Out-of-Distribution Food Gate + geometric foreground coverage guardrail
+    total_px = int(pred_mask.shape[0] * pred_mask.shape[1])
+    food_cov = float(analysis["total_food_pixels"]) / max(total_px, 1)
+    is_nonfood = (
+        (food_prob < 0.50)
+        or (food_cov < 0.015)
+        or (mean_conf < 0.35 and food_cov < 0.05)
+    )
+    if is_nonfood:
+        analysis["health_score"] = 0.0
+        analysis["five_group_ratios_2d"] = {gk: 0.0 for gk in FIVE_GROUP_KEYS}
+        analysis["five_group_ratios_25d"] = {gk: 0.0 for gk in FIVE_GROUP_KEYS}
+        analysis["plate_211"] = {
+            "veg_pct": 0.0,
+            "carb_pct": 0.0,
+            "protein_pct": 0.0,
+            "fat_warning_pct": 0.0,
+            "target": {"veg_pct": 50.0, "carb_pct": 25.0, "protein_pct": 25.0},
+        }
+        analysis["ingredients"] = []
+        analysis["balance_status"] = "ไม่พบจานอาหารชัดเจนในภาพ (Non-Food / Empty Plate)"
+        analysis["recommendations"] = [
+            f"โอกาสเป็นอาหาร {food_prob * 100:.1f}% (พื้นที่อาหาร {food_cov * 100:.1f}%, ความมั่นใจ {mean_conf * 100:.1f}%) กรุณาถ่ายภาพจานอาหารให้เห็นชัดเจนและเต็มเฟรมขึ้น"
+        ]
     overlay_mode = "211" if req.view_mode == "211" else "5groups"
-    overlay_rgb = render_mask_overlay(img_rgb, pred_mask, mode=overlay_mode, alpha=0.50)
+    display_mask = np.zeros_like(pred_mask) if is_nonfood else pred_mask
+    overlay_rgb = render_mask_overlay(img_rgb, display_mask, mode=overlay_mode, alpha=0.50)
 
     group_legend = [
         {

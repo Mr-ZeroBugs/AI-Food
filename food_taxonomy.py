@@ -3,10 +3,36 @@
 from __future__ import annotations
 
 from collections import deque
+import gzip
+import os
 from typing import Dict, List, Tuple
 
 import numpy as np
 from PIL import Image
+
+
+def extract_gz_to_temp(src_gz: str, dst_path: str) -> str:
+    """Decompress a `.gz` asset to `dst_path` atomically once (re-extract if `.gz` is newer)."""
+    if (
+        os.path.exists(dst_path)
+        and os.path.getsize(dst_path) > 1024
+        and os.path.exists(src_gz)
+        and os.path.getmtime(dst_path) >= os.path.getmtime(src_gz)
+    ):
+        return dst_path
+    if not os.path.exists(src_gz):
+        raise FileNotFoundError(f"Compressed asset missing: {src_gz}")
+
+    os.makedirs(os.path.dirname(dst_path), exist_ok=True)
+    tmp_path = f"{dst_path}.tmp.{os.getpid()}"
+    with gzip.open(src_gz, "rb") as fin, open(tmp_path, "wb") as fout:
+        while True:
+            chunk = fin.read(1024 * 1024)
+            if not chunk:
+                break
+            fout.write(chunk)
+    os.replace(tmp_path, dst_path)
+    return dst_path
 
 
 FOOD101_THAI_NAMES: Dict[str, str] = {
@@ -595,14 +621,22 @@ def finalize_local_mask(
     dish_code = str(thai_dish_info.get("top1_code", ""))
     dish_conf = float(thai_dish_info.get("top1_conf_pct", 0.0))
     total_food_px = int(np.sum(counts[unique_ids > 0]))
+    min_component_px = min(250, max(20, int(0.001 * max(total_food_px, 1))))
     for cid_np, px_np in sorted(zip(unique_ids, counts), key=lambda x: x[1], reverse=True):
         cid = int(cid_np)
         px = int(px_np)
-        if cid == 0 or px < 35:
+        if cid == 0 or px < min_component_px:
             continue
         local_cid = FOODSEG103_TO_LOCAL_10CLASS.get(cid, 0)
         if cid in (65, 66) and dish_code in _KHAOPAD_CODES:
             local_cid = 9
+        elif (
+            dish_code in ("KaiJeowMooSaap", "KaiThoon", "omelette", "SonInLawEggs")
+            and dish_conf >= 60.0
+            and cid != 66
+            and local_cid in (2, 9)
+        ):
+            local_cid = 4
         elif (
             cid == 56
             and dish_code in ("PadThai", "pad_thai")

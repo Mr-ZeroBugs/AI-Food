@@ -4,14 +4,16 @@
     "api/index.py": {
       "maxDuration": 60,
       "includeFiles": [
-        "models_onnx/**",
+        "models_onnx/segformer_5group_int8.onnx.gz",
+        "models_onnx/depth_v2_s_int8.onnx.gz",
         "static/**",
         "outputs/**",
         "real_presets/**",
         "app.py",
         "nutrition_engine.py",
         "food_taxonomy.py",
-        "real_foodseg103_onnx.py",
+        "depth_volume_engine.py",
+        "segformer_5group_engine.py",
         "lightweight_5group_segmenter.py"
       ]
     }

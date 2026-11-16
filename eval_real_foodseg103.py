@@ -18,6 +18,7 @@ from PIL import Image
 import pyarrow.parquet as pq
 import torch
 
+from depth_volume_engine import DepthVolumeEngine
 from nutrition_engine import (
     CLASS_NAMES,
     FIVE_GROUP_KEYS,
@@ -30,6 +31,7 @@ from real_foodseg103_engine import (
     FOODSEG103_TO_LOCAL_10CLASS,
     RealFoodSeg103Engine,
 )
+from segformer_5group_engine import SegFormer5GroupEngine
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -114,7 +116,7 @@ def _estimate_pseudo_depth(img_rgb: np.ndarray) -> np.ndarray:
     return np.clip(0.35 + 0.55 * (1.0 - np.abs(gray - 0.5)), 0.15, 1.0)
 
 
-def _eval_foodseg103(engine: RealFoodSeg103Engine, n_samples: int = 60) -> dict:
+def _eval_foodseg103(engine: SegFormer5GroupEngine, n_samples: int = 60) -> dict:
     """Evaluate 5-group pixel segmentation & 2:1:1 balance across FoodSeg103 validation."""
     path = _ensure_cached_file("foodseg103_val.parquet", FOODSEG_VAL_URL)
     rows = _iter_parquet_rows(path, limit=n_samples)
@@ -145,7 +147,7 @@ def _eval_foodseg103(engine: RealFoodSeg103Engine, n_samples: int = 60) -> dict:
             )
 
         gt_local = _FOODSEG_LOCAL_LUT[np.clip(lbl_arr, 0, 255).astype(np.uint8)]
-        pred_local, _raw, _conf, lat_ms, _ings, _dish = engine.predict(img_rgb)
+        pred_local, _conf, lat_ms, _fp, _sr = engine.predict(img_rgb)
         if idx > 0:
             latencies.append(lat_ms)
 
@@ -229,8 +231,12 @@ def _eval_foodseg103(engine: RealFoodSeg103Engine, n_samples: int = 60) -> dict:
     }
 
 
-def _eval_nutrition5k(engine: RealFoodSeg103Engine, n_samples: int = 50) -> dict:
-    """Compare predicted 2.5D 5-group ratios against laboratory-weighed physical grams."""
+def _eval_nutrition5k(
+    engine: SegFormer5GroupEngine,
+    depth_engine: DepthVolumeEngine,
+    n_samples: int = 50,
+) -> dict:
+    """Compare predicted 2.5D 5-group ratios (Depth-Anything-V2 + density) against weighed grams."""
     path = _ensure_cached_file("nutrition5k_test.parquet", NUTRITION5K_TEST_URL)
     rows = _iter_parquet_rows(path, limit=n_samples)
 
@@ -244,9 +250,10 @@ def _eval_nutrition5k(engine: RealFoodSeg103Engine, n_samples: int = 50) -> dict
     print(f"\n[2/4] Benchmarking Google Nutrition5k Laboratory Grams (n = {len(rows)}) ...")
     for row in rows:
         img_rgb = _decode_rgb(row["image"])  # type: ignore[arg-type]
-        pred_local, _raw, _conf, lat_ms, _ings, _dish = engine.predict(img_rgb)
+        pred_local, _conf, lat_ms, _fp, _sr = engine.predict(img_rgb)
         latencies.append(lat_ms)
-        pr_an = analyze_plate_from_mask(pred_local, depth_map=_estimate_pseudo_depth(img_rgb))
+        elev_map = depth_engine.estimate_elevation_map(img_rgb, pred_local)
+        pr_an = analyze_plate_from_mask(pred_local, depth_map=elev_map, apply_density=True)
         pr_r = pr_an["five_group_ratios_25d"]
 
         # Ground truth 5-group distribution computed directly from laboratory-weighed grams
@@ -301,7 +308,7 @@ def _eval_nutrition5k(engine: RealFoodSeg103Engine, n_samples: int = 50) -> dict
     return {"summary": summary, "latencies": latencies}
 
 
-def _eval_uecfoodpix(engine: RealFoodSeg103Engine, n_samples: int = 40) -> dict:
+def _eval_uecfoodpix(engine: SegFormer5GroupEngine, n_samples: int = 40) -> dict:
     """Evaluate foreground Asian dish segmentation against UEC-FoodPix Complete validation."""
     path = _ensure_cached_file("uecfoodpix_val.parquet", UECFOODPIX_VAL_URL)
     rows = _iter_parquet_rows(path, limit=n_samples)
@@ -323,7 +330,7 @@ def _eval_uecfoodpix(engine: RealFoodSeg103Engine, n_samples: int = 40) -> dict:
             )
 
         gt_fg = (lbl_arr > 0).astype(np.int64).ravel()
-        pred_local, _raw, _conf, lat_ms, _ings, _dish = engine.predict(img_rgb)
+        pred_local, _conf, lat_ms, _fp, _sr = engine.predict(img_rgb)
         latencies.append(lat_ms)
         pred_fg = (pred_local > 0).astype(np.int64).ravel()
         cm_fg += np.bincount(gt_fg * 2 + pred_fg, minlength=4).reshape(2, 2)
@@ -345,7 +352,7 @@ def _eval_uecfoodpix(engine: RealFoodSeg103Engine, n_samples: int = 40) -> dict:
     return {"summary": summary, "latencies": latencies}
 
 
-def _eval_thfood50(engine: RealFoodSeg103Engine) -> dict:
+def _eval_thfood50(ref_engine: RealFoodSeg103Engine, seg_engine: SegFormer5GroupEngine) -> dict:
     """Evaluate 1 unseen test photo from every one of the 50 Thai dish classes in THFOOD-50."""
     ak_path = _ensure_cached_file("thfood50_eval_answer_key.jsonl", THFOOD_ANSWER_KEY_URL)
     with open(ak_path, "r", encoding="utf-8") as f:
@@ -364,6 +371,7 @@ def _eval_thfood50(engine: RealFoodSeg103Engine) -> dict:
     top1_hits = 0
     top3_hits = 0
     fg_covs: List[float] = []
+    food_recalls: List[int] = []
     latencies: List[float] = []
 
     print(f"\n[4/4] Benchmarking THFOOD-50 Eval-500 (all {len(chosen)} Thai dishes) ...")
@@ -384,9 +392,10 @@ def _eval_thfood50(engine: RealFoodSeg103Engine) -> dict:
 
         pil_img = Image.open(local_file).convert("RGB")
         img_rgb = np.array(pil_img)
-        raw_th = engine.classify_thai_dish(pil_img)
-        pred_local, _raw, _conf, lat_ms, _ings, _dish = engine.predict(img_rgb)
+        raw_th = ref_engine.classify_thai_dish(pil_img)
+        pred_local, _conf, lat_ms, fp, _sr = seg_engine.predict(img_rgb)
         latencies.append(lat_ms)
+        food_recalls.append(int(fp >= 0.5))
 
         if str(raw_th["top1_code"]) == cname:
             top1_hits += 1
@@ -401,6 +410,7 @@ def _eval_thfood50(engine: RealFoodSeg103Engine) -> dict:
         "n_samples": len(chosen),
         "top1_thai_acc_pct": round(top1_hits / n * 100.0, 2),
         "top3_thai_acc_pct": round(top3_hits / n * 100.0, 2),
+        "food_recall_pct": round(float(np.mean(food_recalls) * 100.0), 2) if food_recalls else 0.0,
         "mean_food_coverage_pct": round(float(np.mean(fg_covs)), 2),
     }
     print(
@@ -420,7 +430,7 @@ def _save_charts(fs_res: dict, n5k_res: dict, uec_res: dict, th_res: dict, repor
     titles_row = [
         "Real Photo (FoodSeg103)",
         "Human Ground Truth (5 Groups)",
-        "Tri-AI Mask2Former Prediction",
+        "SegFormer-B2 5-Group AI",
         "5-Group Ratio (GT vs AI)",
     ]
     short_labels = ["Protein", "Carb", "Minerals", "Vitamin", "Fat"]
@@ -438,7 +448,7 @@ def _save_charts(fs_res: dict, n5k_res: dict, uec_res: dict, th_res: dict, repor
         gt_vals = [item["gt_r"][k] for k in FIVE_GROUP_KEYS]
         pr_vals = [item["pr_r"][k] for k in FIVE_GROUP_KEYS]
         ax_bar.bar(x - 0.18, gt_vals, width=0.35, label="Human GT", color="#475569")
-        ax_bar.bar(x + 0.18, pr_vals, width=0.35, label="Tri-AI Pred", color="#0ea5e9")
+        ax_bar.bar(x + 0.18, pr_vals, width=0.35, label="SegFormer-B2", color="#0ea5e9")
         ax_bar.set_xticks(x)
         ax_bar.set_xticklabels(short_labels, fontsize=8.5)
         ax_bar.set_ylim(0, 100)
@@ -466,7 +476,7 @@ def _save_charts(fs_res: dict, n5k_res: dict, uec_res: dict, th_res: dict, repor
     ax.set_yticks(range(5))
     ax.set_xticklabels(EVAL5_NAMES, rotation=20, ha="right", fontsize=9.5)
     ax.set_yticklabels(EVAL5_NAMES, fontsize=9.5)
-    ax.set_xlabel("Predicted Class (Tri-AI FoodSeg103 Engine)", fontsize=10, fontweight="bold")
+    ax.set_xlabel("Predicted Class (Unified SegFormer-B2 5-Group AI)", fontsize=10, fontweight="bold")
     ax.set_ylabel("Human Ground Truth Class", fontsize=10, fontweight="bold")
     ax.set_title(
         f"5-Food-Group Pixel Confusion Matrix (% on n={fs_res['n_samples']} FoodSeg103 Val)",
@@ -502,7 +512,7 @@ def _save_charts(fs_res: dict, n5k_res: dict, uec_res: dict, th_res: dict, repor
     ax1.set_xlim(0, 100)
     ax1.set_ylim(0, 100)
     ax1.set_xlabel("Human Ground Truth Area Ratio (%)", fontsize=10)
-    ax1.set_ylabel("Tri-AI Predicted Ratio (%)", fontsize=10)
+    ax1.set_ylabel("SegFormer-B2 Predicted Ratio (%)", fontsize=10)
     ax1.set_title(
         f"FoodSeg103 Portion Correlation (r = {corr:.3f}, MAE = {report['overall']['MAE_pct_points']}% pts)",
         fontsize=10.5,
@@ -550,17 +560,46 @@ def _save_charts(fs_res: dict, n5k_res: dict, uec_res: dict, th_res: dict, repor
     plt.close(fig)
 
 
+def _eval_nonfood_holdout(seg_engine: SegFormer5GroupEngine, limit: int = 100) -> dict:
+    """Evaluate learned Food-vs-NonFood OOD gate on held-out Tiny-ImageNet non-food scenes."""
+    nf_path = os.path.join(CACHE_DIR, "tiny_nonfood_ids.json")
+    tiny_path = os.path.join(CACHE_DIR, "tiny_imagenet_val.parquet")
+    if not (os.path.exists(nf_path) and os.path.exists(tiny_path)):
+        return {"nonfood_reject_pct": 0.0, "n_samples": 0}
+    nf_ids = set(json.load(open(nf_path, "r", encoding="utf-8"))["non_food_ids"])
+    rows = pq.ParquetFile(tiny_path).read_row_group(0).to_pylist()
+    rejected, tested = 0, 0
+    for idx, r in enumerate(rows):
+        if idx % 5 != 0 or int(r["label"]) not in nf_ids:
+            continue
+        im = Image.open(BytesIO(r["image"]["bytes"])).convert("RGB").resize((256, 256), Image.BILINEAR)
+        arr = np.asarray(im, dtype=np.uint8)
+        pred_local, _conf, _lat, food_prob, _sr = seg_engine.predict(arr)
+        cov = np.count_nonzero(pred_local > 0) / max(pred_local.size, 1)
+        if food_prob < 0.50 or cov < 0.015:
+            rejected += 1
+        tested += 1
+        if tested >= limit:
+            break
+    pct = round(rejected / max(tested, 1) * 100.0, 2)
+    print(f"  Non-Food OOD Gate (n={tested}): Rejected {rejected}/{tested} ({pct}%)")
+    return {"dataset": "Tiny-ImageNet Non-Food Holdout", "n_samples": tested, "nonfood_reject_pct": pct}
+
+
 def run_multi_dataset_benchmark() -> None:
     os.makedirs(OUTPUTS_DIR, exist_ok=True)
     os.makedirs(PRESETS_DIR, exist_ok=True)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    engine = RealFoodSeg103Engine(device=device)
+    seg_engine = SegFormer5GroupEngine(prefer_torch=True)
+    ref_engine = RealFoodSeg103Engine(device=device)
+    depth_engine = DepthVolumeEngine(prefer_torch=True)
 
-    fs_res = _eval_foodseg103(engine, n_samples=60)
-    n5k_res = _eval_nutrition5k(engine, n_samples=50)
-    uec_res = _eval_uecfoodpix(engine, n_samples=40)
-    th_res = _eval_thfood50(engine)
+    fs_res = _eval_foodseg103(seg_engine, n_samples=60)
+    n5k_res = _eval_nutrition5k(seg_engine, depth_engine, n_samples=50)
+    uec_res = _eval_uecfoodpix(seg_engine, n_samples=40)
+    th_res = _eval_thfood50(ref_engine, seg_engine)
+    nf_summary = _eval_nonfood_holdout(seg_engine, limit=100)
 
     all_latencies = fs_res["latencies"] + n5k_res["latencies"] + uec_res["latencies"] + th_res["latencies"]
     mean_lat = float(np.mean(all_latencies)) if all_latencies else 0.0
@@ -569,12 +608,13 @@ def run_multi_dataset_benchmark() -> None:
         + n5k_res["summary"]["n_samples"]
         + uec_res["summary"]["n_samples"]
         + th_res["summary"]["n_samples"]
+        + nf_summary["n_samples"]
     )
 
     report = {
         "device": torch.cuda.get_device_name(0) if torch.cuda.is_available() else "CPU",
         "cuda_used": torch.cuda.is_available(),
-        "dataset": "Multi-Dataset Real Benchmark (FoodSeg103 + Google Nutrition5k + UEC-FoodPix + THFOOD-50)",
+        "dataset": "Multi-Dataset Real Benchmark (FoodSeg103 + Google Nutrition5k + UEC-FoodPix + THFOOD-50 + Tiny-ImageNet Non-Food)",
         "training_corpus_size": 138818,
         "test_samples": total_tested,
         "inference_latency_ms": round(mean_lat, 2),
@@ -600,6 +640,7 @@ def run_multi_dataset_benchmark() -> None:
                 "corpus_size": 15700,
                 **th_res["summary"],
             },
+            "nonfood_holdout": nf_summary,
             "food101_backbone": {
                 "dataset": "ETHZ Food-101 (Pretrained Swin-Base Backbone)",
                 "corpus_size": 101000,

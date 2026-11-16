@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import gzip
 import json
 import os
 import tempfile
@@ -17,6 +16,7 @@ from food_taxonomy import (
     FOOD101_THAI_NAMES,
     THFOOD50_THAI_NAMES,
     _UNSHIFT_LUT,
+    extract_gz_to_temp,
     finalize_local_mask,
     fuse_multimodel_context,
 )
@@ -29,26 +29,11 @@ _STD_01 = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 
 
 def _extract_gz_to_temp(models_dir: str, gz_name: str, cache_dir: str) -> str:
-    """Decompress `.onnx.gz` once to ephemeral temp directory atomically."""
     raw_name = gz_name[:-3] if gz_name.endswith(".gz") else gz_name
-    dst_path = os.path.join(cache_dir, raw_name)
-    if os.path.exists(dst_path) and os.path.getsize(dst_path) > 1024:
-        return dst_path
-
-    src_gz = os.path.join(models_dir, gz_name)
-    if not os.path.exists(src_gz):
-        raise FileNotFoundError(f"ONNX model asset missing: {src_gz}")
-
-    os.makedirs(cache_dir, exist_ok=True)
-    tmp_path = f"{dst_path}.tmp.{os.getpid()}"
-    with gzip.open(src_gz, "rb") as fin, open(tmp_path, "wb") as fout:
-        while True:
-            chunk = fin.read(1024 * 1024)
-            if not chunk:
-                break
-            fout.write(chunk)
-    os.replace(tmp_path, dst_path)
-    return dst_path
+    return extract_gz_to_temp(
+        os.path.join(models_dir, gz_name),
+        os.path.join(cache_dir, raw_name),
+    )
 
 
 class RealFoodSeg103ONNXEngine:
