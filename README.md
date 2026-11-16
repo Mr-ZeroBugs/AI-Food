@@ -15,8 +15,8 @@ Instead of getting bogged down by thousands of noisy fine-grained dish sub-class
   - **Pixel Segmentation:** `Mask2Former Swin-T` (`mericberktas/foodseg-models`, `foodseg103/mask2former`)
   - **Thai Dish Context:** `SwinV2-Tiny` (`thean/swinv2-tiny-patch4-window8-256-finetuned-THFOOD-50`)
   - **Global Dish Context:** `Swin-Base` (`skylord/swin-finetuned-food101`)
-- **Hybrid Cloud Architecture (Vercel + Docker AI Backend):**
-  - **Vercel Serverless Ready (`vercel.json` + `api/index.py`):** Deploys in seconds under Vercel's size limits with precomputed Tri-AI preset caches (`real_presets/cached_masks.npz`), a built-in pure-NumPy Serverless Edge segmenter (`lightweight_5group_segmenter.py`), and optional `AI_BACKEND_URL` forwarding.
+- **Hybrid Cloud Architecture (Vercel ONNX Tri-AI + Docker PyTorch Backend):**
+  - **Vercel Serverless Ready (`vercel.json` + `api/index.py` + `real_foodseg103_onnx.py`):** Runs real quantized **INT8 ONNX Tri-AI neural networks** (`Mask2Former Swin-T` + `SwinV2-Tiny THFOOD-50` + `Swin-Base Food-101` in `models_onnx/`) directly on Vercel Serverless CPU for any uploaded meal photo, plus precomputed Tri-AI caches (`real_presets/cached_masks.npz`) for instant preset exploration and optional `AI_BACKEND_URL` forwarding.
   - **Full AI Docker Backend (`Dockerfile` + `requirements-ai.txt`):** Ready for **Hugging Face Spaces (Docker)**, Railway, or Render on port `7860` to power both the Vercel frontend (`AI_BACKEND_URL`) and future Mobile Apps (Flutter / React Native) with CORS enabled.
 - **Apple-Inspired Light Liquid Glass Web UI (`static/index.html`):** Drag-and-drop real photo upload plus 8 real-photo presets (`real_presets/`) and benchmark charts (`outputs/`).
 
@@ -45,8 +45,8 @@ Generated evaluation plots and summary JSON are included in `outputs/`:
 
 ### 1. Deploy Web App Immediately on Vercel
 Import this GitHub repository in **Vercel** and click **Deploy**:
-- Vercel uses `vercel.json` + `api/index.py` (`@vercel/python`) and installs lightweight `requirements.txt` (`< 70 MB` total bundle).
-- All 8 real-photo presets use precomputed Tri-AI masks (`real_presets/cached_masks.npz`), while custom uploads run on `lightweight_5group_segmenter.py`—or forward automatically to your full PyTorch backend if you set the `AI_BACKEND_URL` environment variable in Vercel Project Settings (e.g., `https://your-space.hf.space`).
+- Vercel uses `vercel.json` + `api/index.py` and installs `requirements.txt` (`fastapi`, `onnxruntime`, `numpy`, `pillow`, etc., ~271 MB unzipped including compressed `models_onnx/*.onnx.gz`).
+- Uploaded custom images execute real **INT8 ONNX Tri-AI** segmentation (`Mask2Former + THFOOD-50 + Food-101`) directly on Vercel Serverless CPU, while all 8 presets use precomputed Tri-AI masks (`real_presets/cached_masks.npz`). If `AI_BACKEND_URL` is configured in Vercel Project Settings (e.g., `https://your-space.hf.space`), uploads forward to your dedicated GPU/PyTorch server.
 
 ### 2. Deploy Full Tri-AI PyTorch Backend on Hugging Face Spaces / Railway / Render (for Web & Mobile App)
 1. Create a new **Docker Space** on Hugging Face Spaces (or Railway/Render) connected to this repo.
@@ -57,7 +57,7 @@ Import this GitHub repository in **Vercel** and click **Deploy**:
 
 ## REST API Endpoints (CORS Enabled for Mobile App Integration)
 
-- `GET /api/health` — Service status & active inference mode (`full-tri-ai`, `proxy-ai-backend`, or `vercel-serverless`)
+- `GET /api/health` — Service status & active inference mode (`full-tri-ai`, `onnx-tri-ai`, `proxy-ai-backend`, or `vercel-serverless`)
 - `GET /api/presets` — List of 8 real meal presets with thumbnails
 - `GET /api/metrics` — Multi-dataset 200-image benchmark report & chart URLs
 - `POST /api/scan` — Analyze a food image (`preset_id` or `image_b64`, `view_mode`: `"5groups"` or `"211"`) and return 5-food-group ratios, 2D vs. 2.5D breakdown, 2:1:1 balance score, recommendations, and segmentation mask overlay
@@ -71,9 +71,9 @@ Import this GitHub repository in **Vercel** and click **Deploy**:
    pip install -r requirements-ai.txt
    python app.py
    ```
-2. **Lightweight Vercel mode simulation:**
+2. **Vercel ONNX Tri-AI mode simulation:**
    ```bash
    pip install -r requirements.txt
-   FORCE_LIGHTWEIGHT=1 python app.py
+   FORCE_VERCEL_ONNX=1 python app.py
    ```
    Open `http://127.0.0.1:8000` in your browser.

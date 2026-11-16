@@ -103,6 +103,8 @@ _STATE: Dict[str, object] = {
     "real_engine": None,
     "device": None,
     "engine_unavailable": False,
+    "onnx_engine": None,
+    "onnx_unavailable": False,
     "cached_masks": None,
     "cached_meta": None,
 }
@@ -110,7 +112,7 @@ _STATE: Dict[str, object] = {
 
 def _try_get_real_engine() -> Tuple[Optional[object], Optional[object]]:
     """Lazy-load Tri-AI PyTorch engine when running in full AI / Docker environment."""
-    if os.environ.get("FORCE_LIGHTWEIGHT") == "1":
+    if os.environ.get("FORCE_LIGHTWEIGHT") == "1" or os.environ.get("FORCE_VERCEL_ONNX") == "1":
         return None, None
     if _STATE["real_engine"] is not None:
         return _STATE["real_engine"], _STATE["device"]
@@ -134,8 +136,42 @@ def _try_get_real_engine() -> Tuple[Optional[object], Optional[object]]:
         return None, None
 
 
-def _has_full_ai_packages() -> bool:
+def _try_get_onnx_engine() -> Optional[object]:
+    """Lazy-load INT8 ONNX Tri-AI engine for Vercel Serverless CPU."""
     if os.environ.get("FORCE_LIGHTWEIGHT") == "1":
+        return None
+    if _STATE["onnx_engine"] is not None:
+        return _STATE["onnx_engine"]
+    if _STATE["onnx_unavailable"]:
+        return None
+    try:
+        from real_foodseg103_onnx import RealFoodSeg103ONNXEngine
+
+        onnx_engine = RealFoodSeg103ONNXEngine()
+        _STATE["onnx_engine"] = onnx_engine
+        return onnx_engine
+    except ImportError:
+        _STATE["onnx_unavailable"] = True
+        return None
+    except Exception:
+        traceback.print_exc()
+        _STATE["onnx_unavailable"] = True
+        return None
+
+
+def _has_onnx_ai_packages() -> bool:
+    if os.environ.get("FORCE_LIGHTWEIGHT") == "1":
+        return False
+    if _STATE["onnx_engine"] is not None:
+        return True
+    return (
+        importlib.util.find_spec("onnxruntime") is not None
+        and os.path.exists(os.path.join(BASE_DIR, "models_onnx", "m2f_512_int8.onnx.gz"))
+    )
+
+
+def _has_full_ai_packages() -> bool:
+    if os.environ.get("FORCE_LIGHTWEIGHT") == "1" or os.environ.get("FORCE_VERCEL_ONNX") == "1":
         return False
     if _STATE["real_engine"] is not None:
         return True
@@ -214,16 +250,20 @@ def serve_home():
 @app.get("/api/health")
 def health_check():
     full_ai = _has_full_ai_packages()
+    onnx_ai = _has_onnx_ai_packages()
     ai_backend_url = os.environ.get("AI_BACKEND_URL", "").strip()
     if full_ai:
         mode = "full-tri-ai"
     elif ai_backend_url:
         mode = "proxy-ai-backend"
+    elif onnx_ai:
+        mode = "onnx-tri-ai"
     else:
         mode = "vercel-serverless"
     return {
         "status": "ok",
         "mode": mode,
+        "onnx_ready": onnx_ai,
         "ai_backend_configured": bool(ai_backend_url),
         "cached_presets": os.path.exists(CACHED_MASKS_PATH),
     }
@@ -324,11 +364,24 @@ def scan_food(req: ScanRequest):
                 except Exception:
                     pass
 
-            # 4. Pure-NumPy/PIL Serverless Edge fallback for custom uploads on Vercel
-            pred_mask, mean_conf, latency_ms, thai_dish_info = segment_food_5groups_lightweight(
-                img_rgb
-            )
-            engine = "5-Group Semantic AI (Serverless Edge)"
+            # 4. Real INT8 ONNX Tri-AI Engine (Mask2Former + THFOOD-50 + Food-101) on Vercel CPU
+            onnx_engine = _try_get_onnx_engine()
+            if onnx_engine is not None:
+                (
+                    pred_mask,
+                    _raw_foodseg_mask,
+                    mean_conf,
+                    latency_ms,
+                    _detailed_ingredients,
+                    thai_dish_info,
+                ) = onnx_engine.predict(img_rgb)  # type: ignore[attr-defined]
+                engine = "5-Group Semantic AI (ONNX Tri-AI)"
+            else:
+                # 5. Emergency fallback if neither PyTorch nor ONNX Runtime is available
+                pred_mask, mean_conf, latency_ms, thai_dish_info = segment_food_5groups_lightweight(
+                    img_rgb
+                )
+                engine = "5-Group Semantic AI (Serverless Edge)"
 
     # Mild center-weighted relative relief for single-view 2.5D estimation
     rgb_f = img_rgb.astype(np.float32) / 255.0
