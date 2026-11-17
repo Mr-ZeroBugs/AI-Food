@@ -15,6 +15,7 @@ real_dataset_builder.py
 train_5group_model.py
 refine_egg_segformer.py
 benchmark_compare.py
+HANDOFF_CONTEXT.md
 dataset_generator.py
 model_seg.py
 train_and_eval.py
