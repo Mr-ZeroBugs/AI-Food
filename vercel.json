@@ -1,27 +1,25 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "functions": {
-    "api/index.py": {
-      "maxDuration": 60,
-      "includeFiles": [
-        "models_onnx/segformer_5group_int8.onnx.gz",
-        "models_onnx/depth_v2_s_int8.onnx.gz",
-        "static/**",
-        "outputs/**",
-        "real_presets/**",
-        "app.py",
-        "nutrition_engine.py",
-        "food_taxonomy.py",
-        "depth_volume_engine.py",
-        "segformer_5group_engine.py",
-        "lightweight_5group_segmenter.py"
-      ]
-    }
-  },
-  "rewrites": [
+  "buildCommand": "",
+  "outputDirectory": "public",
+  "cleanUrls": false,
+  "headers": [
     {
       "source": "/(.*)",
-      "destination": "/api/index.py"
+      "headers": [
+        { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" },
+        { "key": "Cross-Origin-Embedder-Policy", "value": "credentialless" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+      ]
+    },
+    {
+      "source": "/models/(.*).onnx",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+    },
+    {
+      "source": "/sw.js",
+      "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
     }
   ]
 }

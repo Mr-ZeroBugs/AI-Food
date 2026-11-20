@@ -1,0 +1,44 @@
+{
+  "model": "segformer_v3_int8.onnx",
+  "version": "v3",
+  "foodseg103_val": {
+    "n": 2135,
+    "plate_group_mIoU": 76.58,
+    "plate_group_IoU": {
+      "background": 90.74,
+      "protein": 73.79,
+      "carb": 70.54,
+      "veg": 76.68,
+      "fruit": 71.14
+    },
+    "ratio_211_MAE_pp": 8.14,
+    "ratio_211_MAE_median_pp": 2.73,
+    "class_mIoU": 60.66,
+    "class_IoU": {
+      "background": 89.77,
+      "rice": 67.09,
+      "other_starch": 62.58,
+      "animal_protein": 73.08,
+      "egg": 40.53,
+      "plant_protein": 31.85,
+      "vegetable": 76.19,
+      "fruit": 69.35,
+      "mixed_dish": 37.88,
+      "sweets": 53.2,
+      "liquid": 65.73
+    }
+  },
+  "uecfoodpix_val": {
+    "n": 1000,
+    "food_IoU": 80.7
+  },
+  "nonfood_tiny_imagenet": {
+    "n": 300,
+    "reject_pct": 100.0
+  },
+  "thfood50_samples": {
+    "n": 50,
+    "recognised_as_food_pct": 100.0
+  },
+  "cpu_ms_median": 536.7
+}

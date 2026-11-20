@@ -1,26 +1,25 @@
-FROM python:3.11-slim
-
-WORKDIR /app
+# KinWhy AI inference server: POST /api/analyze-image for the mobile app and the wearable camera.
+# deploy/cloudrun.sh stages the chosen model as deploy/model/model_fp32.onnx + model.json, then deploys.
+FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    HF_HOME=/tmp/hf_cache \
-    PORT=7860
+    FOOD_MODEL_ONNX=/app/model/model_fp32.onnx \
+    FOOD_MODEL_META=/app/model/model.json \
+    PRELOAD_MODEL=1 \
+    SERVE_STATIC=0 \
+    PORT=8080
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libglib2.0-0 \
-    libgl1 \
-    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY requirements.txt requirements-server.txt ./
+RUN pip install --no-cache-dir -r requirements-server.txt
 
-COPY requirements.txt requirements-ai.txt ./
-RUN pip install --no-cache-dir -r requirements-ai.txt
+COPY backend/ backend/
+COPY deploy/model/model_fp32.onnx deploy/model/model.json model/
 
-COPY app.py nutrition_engine.py food_taxonomy.py depth_volume_engine.py segformer_5group_engine.py real_foodseg103_engine.py real_foodseg103_onnx.py lightweight_5group_segmenter.py ./
-COPY models_onnx/segformer_5group_int8.onnx.gz models_onnx/depth_v2_s_int8.onnx.gz ./models_onnx/
-COPY static/ ./static/
-COPY real_presets/ ./real_presets/
-COPY outputs/ ./outputs/
+RUN useradd --system --uid 10001 app && chown -R app /app
+USER app
 
-EXPOSE 7860
-
-CMD ["sh", "-c", "uvicorn app:app --host 0.0.0.0 --port ${PORT:-7860}"]
+# One worker per instance: the model holds ~0.5 GB and inference is serialised per process;
+# Cloud Run scales by adding instances.
+CMD exec uvicorn backend.app:app --host 0.0.0.0 --port ${PORT} --workers 1 --proxy-headers --forwarded-allow-ips="*"

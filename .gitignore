@@ -5,8 +5,15 @@ __pycache__/
 .venv/
 venv/
 datasets_cache/
-models/
+/models/
 dataset_generator.py
 model_seg.py
 train_and_eval.py
 yolo11_foodseg_template.py
+.claude/
+training/*.log
+
+# staged by deploy/cloudrun.sh
+deploy/model/
+
+.vercel

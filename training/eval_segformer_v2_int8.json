@@ -1,0 +1,30 @@
+{
+  "model": "segformer_v2_int8.onnx",
+  "version": "v2",
+  "foodseg103_val": {
+    "n": 2135,
+    "plate_group_mIoU": 73.63,
+    "plate_group_IoU": {
+      "background": 90.14,
+      "protein": 70.93,
+      "carb": 63.52,
+      "veg": 75.77,
+      "fruit": 67.78
+    },
+    "ratio_211_MAE_pp": 13.62,
+    "ratio_211_MAE_median_pp": 7.27
+  },
+  "uecfoodpix_val": {
+    "n": 1000,
+    "food_IoU": 82.67
+  },
+  "nonfood_tiny_imagenet": {
+    "n": 300,
+    "reject_pct": 100.0
+  },
+  "thfood50_samples": {
+    "n": 50,
+    "recognised_as_food_pct": 100.0
+  },
+  "cpu_ms_median": 562.5
+}

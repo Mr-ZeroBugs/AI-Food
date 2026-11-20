@@ -1,0 +1,12 @@
+# Upload only what the inference image needs (gcloud run deploy --source .).
+*
+!Dockerfile
+!requirements.txt
+!requirements-server.txt
+!backend/
+!backend/**
+backend/__pycache__/
+!deploy/
+!deploy/model/
+!deploy/model/model_fp32.onnx
+!deploy/model/model.json

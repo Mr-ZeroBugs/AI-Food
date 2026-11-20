@@ -1,0 +1,6 @@
+*
+!requirements.txt
+!requirements-server.txt
+!backend/
+!deploy/model/
+**/__pycache__

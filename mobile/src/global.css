@@ -1,0 +1,5 @@
+:root {
+  --font-ui: 'IBM Plex Sans Thai', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+html, body { background: var(--bg, #f4f3ee); }
+::selection { background: rgba(31, 138, 84, 0.28); }

@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>KinWhy AI — เอกสารทางเทคนิค: โมเดล ข้อมูล และอัลกอริทึม</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  @page { size: A4; margin: 18mm 17mm 20mm 17mm; }
+  @page :first { margin: 0; }
+  :root {
+    --ink: #1C1B17; --muted: #5E5C55; --faint: #8A877E; --line: #DCD9CF; --ground: #F4F3EE;
+    --tint: #1D7F4E; --veg: #22A05A; --carb: #E09A00; --prot: #E5484D; --fruit: #8E4EC6; --liquid: #3C8CCB;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { margin: 0; color: var(--ink); font: 10.4pt/1.62 "IBM Plex Sans Thai", "Leelawadee UI", Tahoma, sans-serif; }
+  code, .mono { font-family: "IBM Plex Mono", Consolas, monospace; font-size: 8.8pt; }
+  code { background: #EFEDE6; padding: 0 3px; border-radius: 3px; }
+  h1, h2, h3, h4 { line-height: 1.3; margin: 0; }
+  h2 { font-size: 16pt; margin: 0 0 8pt; padding-top: 2pt; break-after: avoid; }
+  h2 .n { color: var(--tint); margin-right: 6pt; }
+  h3 { font-size: 11.8pt; margin: 14pt 0 4pt; break-after: avoid; }
+  h4 { font-size: 10.6pt; margin: 10pt 0 2pt; break-after: avoid; }
+  p { margin: 0 0 6pt; }
+  ul, ol { margin: 0 0 6pt; padding-left: 16pt; }
+  li { margin: 1.5pt 0; }
+  section { break-before: page; }
+  section.cont { break-before: auto; margin-top: 18pt; }
+  table { width: 100%; border-collapse: collapse; margin: 4pt 0 9pt; font-size: 9.3pt; }
+  tr { break-inside: avoid; }
+  table.keep { break-inside: avoid; }
+  th, td { text-align: left; padding: 3.5pt 6pt; border-bottom: 0.6pt solid var(--line); vertical-align: top; }
+  th { font-weight: 600; color: var(--muted); border-bottom: 1pt solid var(--ink); font-size: 8.8pt; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  tr.best td { font-weight: 600; }
+  .caption { font-size: 8.6pt; color: var(--muted); margin: -4pt 0 10pt; }
+  .note { border: 0.8pt solid var(--line); background: #FAF9F5; border-radius: 6pt; padding: 7pt 10pt; margin: 6pt 0 10pt; font-size: 9.6pt; break-inside: avoid; }
+  .note b { color: var(--tint); }
+  .warn { border-color: #E9C46A; background: #FFF8E6; }
+  .warn b { color: #8A5A00; }
+  .formula { font-family: "IBM Plex Mono", Consolas, monospace; font-size: 9.4pt; background: #F4F3EE; border-radius: 6pt; padding: 7pt 10pt; margin: 4pt 0 9pt; white-space: pre-wrap; break-inside: avoid; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12pt; }
+  .chip { display: inline-block; width: 8pt; height: 8pt; border-radius: 2pt; vertical-align: -0.5pt; margin-right: 3pt; }
+  figure { margin: 6pt 0 10pt; break-inside: avoid; }
+  figure svg { width: 100%; height: auto; display: block; }
+  figcaption { font-size: 8.6pt; color: var(--muted); margin-top: 4pt; }
+
+  /* Cover */
+  .cover { height: 100vh; padding: 26mm 22mm 20mm; display: flex; flex-direction: column; break-after: page; border-top: 3mm solid var(--tint); }
+  .cover .brand { display: flex; align-items: center; gap: 10pt; font-weight: 700; font-size: 13pt; }
+  .cover h1 { font-size: 30pt; line-height: 1.18; margin-top: 46mm; letter-spacing: -0.2pt; }
+  .cover .sub { font-size: 13pt; color: var(--muted); margin-top: 8pt; max-width: 150mm; }
+  .cover .facts { margin-top: auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10pt; border-top: 1pt solid var(--ink); padding-top: 10pt; }
+  .cover .facts div { font-size: 9pt; color: var(--muted); }
+  .cover .facts strong { display: block; font-size: 15pt; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .cover .meta { font-size: 9pt; color: var(--muted); margin-top: 14pt; }
+
+  /* TOC */
+  .toc ol { list-style: none; padding: 0; counter-reset: t; }
+  .toc li { display: flex; gap: 8pt; padding: 4pt 0; border-bottom: 0.6pt solid var(--line); font-size: 10.6pt; }
+  .toc li span:first-child { color: var(--tint); font-weight: 600; width: 18pt; }
+  .toc li em { margin-left: auto; color: var(--faint); font-style: normal; font-size: 9pt; }
+</style>
+</head>
+<body>
+
+<!-- ============ COVER ============ -->
+<div class="cover">
+  <div class="brand">
+    <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><circle cx="17" cy="17" r="16" fill="#fff"/><path d="M17 4 A13 13 0 0 1 17 30 Z" fill="#22A05A"/><path d="M17 30 A13 13 0 0 1 4 17 L17 17 Z" fill="#E09A00"/><path d="M4 17 A13 13 0 0 1 17 4 L17 17 Z" fill="#E5484D"/><path d="M17 3.5V30.5M3.5 17H17" stroke="#fff" stroke-width="1.4"/></svg>
+    KinWhy AI
+  </div>
+  <h1>เอกสารทางเทคนิค<br>โมเดล ข้อมูล และอัลกอริทึม</h1>
+  <p class="sub">ระบบแยกพื้นที่อาหารในภาพถ่ายตามอาหารหลัก 5 หมู่ และประเมินความใกล้เคียงจานสุขภาพ 2:1:1 ด้วยโมเดล SegFormer-B2 ที่เทรนเอง พร้อมชุดข้อมูลอาหารไทยที่ติดป้ายและตรวจด้วยมือ</p>
+  <div class="facts">
+    <div><strong>SegFormer-B2</strong>27.6 ล้านพารามิเตอร์ · 11 คลาส + หัวคัดกรองอาหาร</div>
+    <div><strong>10.7 จุด</strong>ค่าคลาดเคลื่อน 2:1:1 เฉลี่ยบนอาหารไทย 149 จาน (โมเดล v4)</div>
+    <div><strong>16,450 ภาพ</strong>ข้อมูลเทรนของ v4 จาก 5 แหล่ง</div>
+  </div>
+  <p class="meta">ฉบับวันที่ 19 พฤศจิกายน 2569 · โมเดลที่ใช้งานจริง: v4 · โค้ดอ้างอิงในเอกสารนี้อยู่ใน repository ของโปรเจกต์ (backend/, training/, mobile/, public/)</p>
+</div>
+
+<!-- ============ TOC ============ -->
+<div class="toc" style="break-after: page;">
+  <h2>สารบัญ</h2>
+  <ol>
+    <li><span>1</span>บทสรุป</li>
+    <li><span>2</span>ภาพรวมระบบและการไหลของข้อมูล</li>
+    <li><span>3</span>หลักโภชนาการที่ใช้เป็นเกณฑ์</li>
+    <li><span>4</span>คลาสของโมเดลและการแปลงเป็นหมู่อาหาร</li>
+    <li><span>5</span>สถาปัตยกรรมโมเดล</li>
+    <li><span>6</span>ข้อมูลที่ใช้เทรนและทดสอบ</li>
+    <li><span>7</span>การสร้างป้ายกำกับอาหารไทย (SAM + การตรวจทีละส่วน)</li>
+    <li><span>8</span>การเทรนโมเดล</li>
+    <li><span>9</span>การแปลงโมเดลและการรันจริง (inference)</li>
+    <li><span>10</span>การคำนวณสัดส่วนจานและคะแนน 2:1:1</li>
+    <li><span>11</span>วิธีวัดผลและผลการประเมิน</li>
+    <li><span>12</span>ประวัติรุ่นของโมเดล v2 → v4</li>
+    <li><span>13</span>ระบบที่นำไปใช้งาน (เว็บ แอป เซิร์ฟเวอร์)</li>
+    <li><span>14</span>ส่วนเสริม: การอ่านเมนูด้วย Vision-Language Model</li>
+    <li><span>15</span>ข้อจำกัดและงานต่อไป</li>
+    <li><span>16</span>ภาคผนวก: ไฟล์และคำสั่งสำหรับทำซ้ำ</li>
+  </ol>
+</div>
+
+<!-- ============ 1 ============ -->
+<section style="break-before: auto;">
+  <h2><span class="n">1</span>บทสรุป</h2>
+  <p>KinWhy AI รับภาพถ่ายมื้ออาหารหนึ่งภาพ แล้วตอบว่าในจานมีพื้นที่ของ <b>ผัก (หมู่ 3)</b> <b>ข้าว-แป้ง (หมู่ 2)</b> <b>โปรตีน (หมู่ 1)</b> และ <b>ผลไม้ (หมู่ 4)</b> อย่างละเท่าไร และจานนั้นใกล้สูตร <b>จานสุขภาพ 2:1:1</b> ของกรมอนามัย (ผักครึ่งจาน ข้าว-แป้งหนึ่งในสี่ โปรตีนหนึ่งในสี่) แค่ไหน</p>
+  <p>หัวใจของระบบคือโมเดล <b>semantic segmentation</b> ซึ่งระบุว่าแต่ละพิกเซลในภาพเป็นอาหารประเภทใด โดยใช้สถาปัตยกรรม <b>SegFormer-B2</b> ที่นำน้ำหนักเริ่มต้นจากชุดข้อมูล ADE20K มาเทรนต่อ (fine-tune) กับข้อมูลอาหาร 16,450 ภาพ โมเดลให้ผลออกมาสองส่วนในการรันครั้งเดียว:</p>
+  <ol>
+    <li><b>แผนที่คลาสรายพิกเซล</b> 11 คลาส ความละเอียด 128×128 เมื่อนับพื้นที่แต่ละคลาสแล้วแปลงเป็นหมู่อาหาร ก็จะได้สัดส่วนบนจาน</li>
+    <li><b>ความน่าจะเป็นว่าภาพนี้เป็นอาหารหรือไม่</b> (food gate) ใช้กันภาพที่ไม่ใช่อาหาร</li>
+  </ol>
+  <p>จุดที่ต่างจากงานทั่วไปคือ <b>ชุดข้อมูลอาหารไทย 494 ภาพที่ติดป้ายระดับพิกเซล</b> ซึ่งสร้างขึ้นเองด้วยกระบวนการกึ่งอัตโนมัติ ให้ SAM 2.1 วาดขอบวัตถุ แล้วตรวจและแก้ป้ายของทุกส่วนทีละภาพ ชุดนี้แบ่งเป็นชุดทดสอบ 149 ภาพ ซึ่งเป็นครั้งแรกที่วัดความแม่นยำบนอาหารไทยได้จริง และชุดเทรน 345 ภาพ ซึ่งทำให้โมเดล v4 แม่นขึ้นชัดเจนบนอาหารไทย</p>
+
+  <table>
+    <tr><th>ผลหลักของโมเดลที่ใช้งาน (v4)</th><th class="num">อาหารไทย (149 จาน)</th><th class="num">FoodSeg103 (2,135 ภาพ)</th></tr>
+    <tr><td>ค่าคลาดเคลื่อนสัดส่วน 2:1:1 เฉลี่ย (จุดเปอร์เซ็นต์)</td><td class="num">10.66</td><td class="num">8.07</td></tr>
+    <tr><td>ค่าคลาดเคลื่อนสัดส่วน 2:1:1 มัธยฐาน</td><td class="num">3.53</td><td class="num">2.47</td></tr>
+    <tr><td>mIoU 5 กลุ่ม (พื้นหลัง, โปรตีน, แป้ง, ผัก, ผลไม้)</td><td class="num">71.09%</td><td class="num">77.14%</td></tr>
+  </table>
+  <p class="caption">ตัวเลขจากไฟล์ fp32 ที่ใช้บนเซิร์ฟเวอร์ ไฟล์ int8 ที่รันในเบราว์เซอร์มีค่าคลาดเคลื่อนบนอาหารไทย 12.25 จุด (รายละเอียดในหัวข้อ 11)</p>
+
+  <div class="note"><b>สิ่งที่ระบบนี้วัด และสิ่งที่ไม่ได้วัด:</b> ระบบวัด <i>สัดส่วนพื้นที่ที่มองเห็นบนจาน</i> ซึ่งตรงกับนิยามของจาน 2:1:1 ที่นิยามจากพื้นที่ ระบบ<i>ไม่ได้</i>วัดน้ำหนัก แคลอรี หรือไขมันจากน้ำมันปรุง เพราะสิ่งเหล่านี้มองไม่เห็นในภาพสองมิติ ส่วนเสริมสำหรับประเมินปริมาณด้วย Vision-Language Model อธิบายไว้ในหัวข้อ 14 แต่ยังไม่ได้เปิดใช้ในเวอร์ชันปัจจุบัน</div>
+</section>
+
+<!-- ============ 2 ============ -->
+<section class="cont">
+  <h2><span class="n">2</span>ภาพรวมระบบและการไหลของข้อมูล</h2>
+  <figure>
+    <svg viewBox="0 0 700 250" xmlns="http://www.w3.org/2000/svg" font-family="IBM Plex Sans Thai, Leelawadee UI, sans-serif" font-size="11">
+      <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#1C1B17"/></marker></defs>
+      <g fill="#fff" stroke="#1C1B17" stroke-width="1.1">
+        <rect x="8" y="80" width="110" height="74" rx="8"/>
+        <rect x="150" y="80" width="118" height="74" rx="8"/>
+        <rect x="300" y="60" width="140" height="114" rx="8" fill="#EAF5EE"/>
+        <rect x="472" y="80" width="104" height="74" rx="8"/>
+        <rect x="604" y="80" width="88" height="74" rx="8"/>
+      </g>
+      <g fill="#1C1B17" font-weight="600">
+        <text x="63" y="104" text-anchor="middle">ภาพถ่ายมื้ออาหาร</text>
+        <text x="209" y="104" text-anchor="middle">เตรียมภาพ</text>
+        <text x="370" y="84" text-anchor="middle">SegFormer-B2 (v4)</text>
+        <text x="524" y="104" text-anchor="middle">หลังประมวลผล</text>
+        <text x="648" y="104" text-anchor="middle">ผลลัพธ์</text>
+      </g>
+      <g fill="#5E5C55" font-size="9.6">
+        <text x="63" y="122" text-anchor="middle">กล้องมือถือ / อัปโหลด</text>
+        <text x="63" y="137" text-anchor="middle">ย่อด้านยาว ≤1280 px</text>
+        <text x="209" y="122" text-anchor="middle">ย่อด้านยาวเป็น 512</text>
+        <text x="209" y="137" text-anchor="middle">pad ขวา/ล่าง, normalize</text>
+        <text x="370" y="104" text-anchor="middle">encoder MiT-B2 4 ชั้น</text>
+        <text x="370" y="119" text-anchor="middle">decoder All-MLP</text>
+        <text x="370" y="138" text-anchor="middle">→ 11 คลาส × 128×128</text>
+        <text x="370" y="153" text-anchor="middle">→ food gate (sigmoid)</text>
+        <text x="524" y="122" text-anchor="middle">argmax, ลบจุดเล็ก</text>
+        <text x="524" y="137" text-anchor="middle">นับพื้นที่ → หมู่ 1-4</text>
+        <text x="648" y="122" text-anchor="middle">สัดส่วน 2:1:1</text>
+        <text x="648" y="137" text-anchor="middle">คะแนน + คำแนะนำ</text>
+      </g>
+      <g stroke="#1C1B17" stroke-width="1.2" marker-end="url(#a)">
+        <line x1="118" y1="117" x2="148" y2="117"/><line x1="268" y1="117" x2="298" y2="117"/>
+        <line x1="440" y1="117" x2="470" y2="117"/><line x1="576" y1="117" x2="602" y2="117"/>
+      </g>
+      <g font-size="9.6" fill="#1D7F4E">
+        <text x="150" y="200">รันที่ไหน:</text>
+        <text x="150" y="216">• เว็บ: ไฟล์ int8 (54.7 MB) รันในเบราว์เซอร์ผ่าน onnxruntime-web (WASM) รูปไม่ออกจากเครื่อง</text>
+        <text x="150" y="232">• แอป/อุปกรณ์ห้อยคอ: ไฟล์ fp32 (110.8 MB) รันบนเซิร์ฟเวอร์ POST /api/analyze-image</text>
+      </g>
+    </svg>
+    <figcaption>รูปที่ 1 ขั้นตอนตั้งแต่รับภาพจนได้ผลลัพธ์ ใช้ขั้นตอนเตรียมภาพและหลังประมวลผลเดียวกันทุกที่ ทั้งตอนเทรน ตอนวัดผล ในเบราว์เซอร์ และบนเซิร์ฟเวอร์ ภาพเดียวกันจึงได้ผลเหมือนกันทุกที่</figcaption>
+  </figure>
+  <p>ระบบแบ่งเป็นสามชั้นที่แยกจากกันชัดเจน:</p>
+  <ul>
+    <li><b>ชั้นการรับรู้ (perception):</b> โมเดลแบ่งพื้นที่ (หัวข้อ 5-9) ตอบได้อย่างเดียวว่า "พิกเซลนี้คืออะไร"</li>
+    <li><b>ชั้นกฎโภชนาการ (rules):</b> ฟังก์ชันที่กำหนดแน่นอน (deterministic) ใน <code>backend/nutrition.py</code> แปลงพื้นที่เป็นสัดส่วนหมู่อาหาร คะแนน 2:1:1 และคำแนะนำ (หัวข้อ 3, 10) ชั้นนี้ไม่มี machine learning ผลจึงตรวจสอบย้อนกลับได้ทุกตัวเลข</li>
+    <li><b>ชั้นแสดงผล:</b> เว็บ แอป และประวัติ (หัวข้อ 13)</li>
+  </ul>
+  <p>การแยกแบบนี้ทำให้ตัวเลขที่ผู้ใช้เห็นตรงกับสีที่ระบายบนภาพเสมอ เพราะสัดส่วนคำนวณจากหน้ากากสีเดียวกัน ไม่มีโมเดลอีกตัวมาทำนายสัดส่วนแยกต่างหาก ซึ่งต่างจากรุ่นก่อนหน้าที่เคยมีหัวทำนายสัดส่วนแยก และให้ตัวเลขไม่ตรงกับภาพ</p>
+</section>
+
+<!-- ============ 3 ============ -->
+<section>
+  <h2><span class="n">3</span>หลักโภชนาการที่ใช้เป็นเกณฑ์</h2>
+  <h3>3.1 อาหารหลัก 5 หมู่ (กระทรวงสาธารณสุข)</h3>
+  <table>
+    <tr><th>หมู่</th><th>ประกอบด้วย</th><th>มองเห็นในภาพได้ไหม</th></tr>
+    <tr><td><span class="chip" style="background:var(--prot)"></span>หมู่ 1 โปรตีน</td><td>เนื้อสัตว์ ปลา อาหารทะเล ไข่ นม ถั่วเมล็ดแห้ง เต้าหู้</td><td>ได้</td></tr>
+    <tr><td><span class="chip" style="background:var(--carb)"></span>หมู่ 2 คาร์โบไฮเดรต</td><td>ข้าว แป้ง เส้น ขนมปัง เผือก มัน น้ำตาล</td><td>ได้ (ยกเว้นน้ำตาลที่ละลายในอาหาร)</td></tr>
+    <tr><td><span class="chip" style="background:var(--veg)"></span>หมู่ 3 ผัก</td><td>ผักใบ ผักผล ผักหัว เห็ด</td><td>ได้</td></tr>
+    <tr><td><span class="chip" style="background:var(--fruit)"></span>หมู่ 4 ผลไม้</td><td>ผลไม้ทุกชนิด</td><td>ได้</td></tr>
+    <tr><td><span class="chip" style="background:#787878"></span>หมู่ 5 ไขมัน</td><td>น้ำมัน ไขมันสัตว์ กะทิ</td><td><b>ไม่ได้</b> ส่วนใหญ่ซึมอยู่ในอาหาร จึงไม่นับในสัดส่วนพื้นที่</td></tr>
+  </table>
+
+  <h3>3.2 จานสุขภาพ 2:1:1</h3>
+  <p>แบ่งพื้นที่จานเป็น 4 ส่วน ผัก 2 ส่วน (50%) ข้าว-แป้ง 1 ส่วน (25%) โปรตีน 1 ส่วน (25%) ผลไม้แนะนำให้กินแยกหลังอาหาร จึง<b>ไม่นับในอัตราส่วน</b> แต่ระบบยังรายงานพื้นที่ผลไม้แยกไว้ให้</p>
+
+  <h3>3.3 ธงโภชนาการ (กรมอนามัย) ต่อวัน</h3>
+  <table>
+    <tr><th>กลุ่มอาหาร</th><th>หน่วย</th><th class="num">1,600 kcal</th><th class="num">2,000 kcal</th><th class="num">2,400 kcal</th></tr>
+    <tr><td>ข้าว-แป้ง</td><td>ทัพพี</td><td class="num">8</td><td class="num">10</td><td class="num">12</td></tr>
+    <tr><td>ผัก</td><td>ทัพพี</td><td class="num">4</td><td class="num">5</td><td class="num">6</td></tr>
+    <tr><td>ผลไม้</td><td>ส่วน</td><td class="num">3</td><td class="num">4</td><td class="num">5</td></tr>
+    <tr><td>เนื้อสัตว์</td><td>ช้อนกินข้าว</td><td class="num">6</td><td class="num">9</td><td class="num">12</td></tr>
+    <tr><td>น้ำมัน / น้ำตาล (หวาน มัน เค็ม 6:6:1)</td><td>ช้อนชา</td><td class="num">≤6 / ≤6</td><td class="num">≤6 / ≤6</td><td class="num">≤6 / ≤6</td></tr>
+  </table>
+  <p class="caption">1,600 kcal: เด็ก 6-13 ปี ผู้หญิงวัยทำงาน ผู้สูงอายุ · 2,000 kcal: วัยรุ่น ผู้ชายวัยทำงาน · 2,400 kcal: ผู้ใช้แรงงานมาก นักกีฬา · เป้าต่อมื้อ = ค่าต่อวัน ÷ 3</p>
+  <p>ตารางนี้ใช้สำหรับเทียบปริมาณต่อมื้อ ซึ่งต้องมีการประเมินปริมาณจากส่วนเสริมในหัวข้อ 14 ส่วนคะแนน 2:1:1 ใช้แค่สัดส่วนพื้นที่ ค่าทั้งหมดอยู่ใน <code>backend/nutrition.py</code></p>
+</section>
+
+<!-- ============ 4 ============ -->
+<section>
+  <h2><span class="n">4</span>คลาสของโมเดลและการแปลงเป็นหมู่อาหาร</h2>
+  <p>โมเดลไม่ได้ทำนาย "หมู่" โดยตรง แต่ทำนาย 11 คลาสที่ละเอียดกว่า เพราะสองเหตุผล (1) บางคลาสมีลักษณะในภาพต่างกันมากแม้อยู่หมู่เดียวกัน เช่น ไข่ดาวกับเนื้อหมู การแยกคลาสช่วยให้โมเดลเรียนได้ง่ายขึ้น (2) บางคลาสไม่ได้อยู่หมู่เดียว เช่น อาหารคลุก หรือไม่ควรนับในจาน เช่น น้ำซุป</p>
+  <table>
+    <tr><th>#</th><th>คลาส</th><th>ตัวอย่าง</th><th>แปลงเป็นหมู่</th></tr>
+    <tr><td class="num">0</td><td><code>background</code></td><td>จาน โต๊ะ ซอส ช้อน</td><td>ไม่นับ</td></tr>
+    <tr><td class="num">1</td><td><code>rice</code></td><td>ข้าวสวย ข้าวต้ม ข้าวเหนียว</td><td>หมู่ 2 (100%)</td></tr>
+    <tr><td class="num">2</td><td><code>other_starch</code></td><td>เส้น ขนมปัง มันฝรั่ง ข้าวโพด</td><td>หมู่ 2 (100%)</td></tr>
+    <tr><td class="num">3</td><td><code>animal_protein</code></td><td>หมู ไก่ ปลา กุ้ง หมึก</td><td>หมู่ 1 (100%)</td></tr>
+    <tr><td class="num">4</td><td><code>egg</code></td><td>ไข่ดาว ไข่ต้ม ไข่เจียว ไข่ตุ๋น</td><td>หมู่ 1 (100%)</td></tr>
+    <tr><td class="num">5</td><td><code>plant_protein</code></td><td>เต้าหู้ ถั่ว</td><td>หมู่ 1 (100%)</td></tr>
+    <tr><td class="num">6</td><td><code>vegetable</code></td><td>ผักทุกชนิด เห็ด มะละกอดิบในส้มตำ</td><td>หมู่ 3 (100%)</td></tr>
+    <tr><td class="num">7</td><td><code>fruit</code></td><td>ผลไม้ มะนาวฝาน</td><td>หมู่ 4 (ไม่นับใน 2:1:1)</td></tr>
+    <tr><td class="num">8</td><td><code>mixed_dish</code></td><td>อาหารคลุกที่แยกส่วนไม่ได้</td><td>หมู่ 2 65% · หมู่ 1 25% · หมู่ 3 10%</td></tr>
+    <tr><td class="num">9</td><td><code>sweets</code></td><td>ขนม เค้ก ของหวาน</td><td>หมู่ 2 (100%)</td></tr>
+    <tr><td class="num">10</td><td><code>liquid</code></td><td>น้ำซุป น้ำแกง เครื่องดื่ม</td><td>ไม่นับในพื้นที่จาน (รายงานแยก)</td></tr>
+  </table>
+  <p>สัดส่วนของ <code>mixed_dish</code> (65/25/10) เป็นค่าเฉลี่ยทั่วไปของข้าวผัดหรือผัดไทย ถ้าเปิดส่วนเสริม VLM ระบบจะใช้สัดส่วนที่ VLM ประเมินจากเมนูนั้นแทน การแปลงทั้งหมดอยู่ใน <code>backend/taxonomy.py</code> (<code>CLASS_TO_GROUP_SPLIT</code>)</p>
+  <p>การแปลงป้าย FoodSeg103 ซึ่งมี 103 ส่วนผสมมาเป็น 11 คลาสนี้ใช้ตาราง <code>FOODSEG103_TO_V3</code> ส่วนผสมที่ไม่ใช่อาหารหลัก เช่น ซอส ชีส และ "อื่นๆ" แปลงเป็นพื้นหลัง</p>
+</section>
+
+<!-- ============ 5 ============ -->
+<section>
+  <h2><span class="n">5</span>สถาปัตยกรรมโมเดล</h2>
+  <h3>5.1 ทำไมเลือก SegFormer</h3>
+  <p>SegFormer (Xie et al., NeurIPS 2021) เป็นโมเดล segmentation แบบ Transformer ที่ออกแบบให้เบา มีจุดเด่นที่เหมาะกับงานนี้:</p>
+  <ul>
+    <li><b>ไม่มี positional encoding แบบตายตัว</b> จึงรับภาพต่างขนาดได้โดยความแม่นไม่ตก เหมาะกับรูปจากมือถือที่สัดส่วนภาพไม่เท่ากัน</li>
+    <li><b>Encoder แบบลำดับชั้น</b> (hierarchical) ให้ feature 4 ระดับความละเอียด จับได้ทั้งเม็ดข้าวและภาพรวมของจาน</li>
+    <li><b>Decoder เป็น MLP ล้วน</b> เบาและแปลงเป็น ONNX หรือ quantize ได้ง่าย ทำให้รันในเบราว์เซอร์ได้</li>
+    <li>รุ่น B2 สมดุลระหว่างความแม่นกับขนาดไฟล์ (int8 ประมาณ 55 MB)</li>
+  </ul>
+
+  <h3>5.2 โครงสร้าง (ค่าจริงจาก config ของ nvidia/segformer-b2-finetuned-ade-512-512)</h3>
+  <table>
+    <tr><th>ส่วน</th><th>รายละเอียด</th></tr>
+    <tr><td>Encoder: Mix Transformer (MiT-B2)</td><td>4 stage, จำนวน block ต่อ stage = 3, 4, 6, 3 · ขนาด hidden = 64, 128, 320, 512 · attention heads = 1, 2, 5, 8</td></tr>
+    <tr><td>Overlapped patch embedding</td><td>kernel 7, 3, 3, 3 · stride 4, 2, 2, 2 ได้ feature ที่ 1/4, 1/8, 1/16, 1/32 ของภาพ</td></tr>
+    <tr><td>Efficient self-attention</td><td>ย่อ key/value ด้วย reduction ratio 8, 4, 2, 1 ลดต้นทุน attention จาก O(N²) เหลือ O(N²/R)</td></tr>
+    <tr><td>Mix-FFN</td><td>MLP + depth-wise conv 3×3 ให้ข้อมูลตำแหน่งแทน positional encoding</td></tr>
+    <tr><td>Decoder: All-MLP</td><td>ฉาย feature ทั้ง 4 ระดับเป็น 768 ช่อง ขยายเป็น 1/4 แล้วต่อกัน → MLP → 11 คลาส</td></tr>
+    <tr><td>ขนาดรวม</td><td>27.6 ล้านพารามิเตอร์ (รวมหัว food gate 0.26 ล้าน)</td></tr>
+  </table>
+
+  <h3>5.3 ส่วนที่เราดัดแปลง</h3>
+  <ol>
+    <li><b>หัวแบ่งคลาส</b> เปลี่ยนจาก 150 คลาสของ ADE20K เป็น 11 คลาส โดยสุ่มค่าเริ่มต้นใหม่เฉพาะชั้นสุดท้าย ส่วนอื่นใช้น้ำหนัก ADE20K เดิม</li>
+    <li><b>หัว food gate</b> นำ feature ของ stage สุดท้าย (512 ช่อง ที่ 1/32) มาทำ global average pooling และ global max pooling แล้วต่อกันเป็น 1,024 ค่า → Linear(1024→256) → LayerNorm → SiLU → Dropout 0.2 → Linear(256→1) ผ่าน sigmoid ได้ความน่าจะเป็นที่ภาพจะเป็นอาหาร</li>
+  </ol>
+  <div class="formula">ขาเข้า : pixel_values  (1, 3, 512, 512)  float32, normalize ด้วย mean/std ของ ImageNet
+ขาออก : seg_logits    (1, 11, 128, 128)  ค่าก่อน softmax ต่อคลาส ต่อพิกเซล (stride 4)
+        food_logit    (1, 1)             ค่าก่อน sigmoid ของ "ภาพนี้เป็นอาหาร"</div>
+</section>
+
+<!-- ============ 6 ============ -->
+<section>
+  <h2><span class="n">6</span>ข้อมูลที่ใช้เทรนและทดสอบ</h2>
+  <h3>6.1 แหล่งข้อมูล</h3>
+  <table>
+    <tr><th>ชุดข้อมูล</th><th>ลักษณะ</th><th>ป้ายกำกับ</th><th>ใช้ทำอะไร</th></tr>
+    <tr><td><b>FoodSeg103</b></td><td>ภาพอาหาร 7,118 ภาพ 103 ส่วนผสม (ส่วนใหญ่อาหารตะวันตกและจีน)</td><td>มนุษย์ติดป้ายระดับพิกเซล</td><td>เทรน 4,982 ภาพ · ทดสอบ 2,135 ภาพ</td></tr>
+    <tr><td><b>THFOOD-50</b></td><td>อาหารไทย 50 เมนู ประมาณ 15,000 ภาพ</td><td>มีแค่ชื่อเมนู ไม่มีป้ายพิกเซล</td><td>pseudo-label (6.3) และแหล่งภาพของชุดไทยที่ตรวจแล้ว (หัวข้อ 7)</td></tr>
+    <tr><td><b>Nutrition5k</b></td><td>จานอาหารถ่ายจากด้านบน</td><td>ไม่มีป้ายพิกเซล</td><td>pseudo-label 888 ภาพ</td></tr>
+    <tr><td><b>UECFoodPix Complete</b></td><td>อาหารญี่ปุ่น</td><td>ขอบเขตทั้งจาน ไม่แยกส่วนผสม</td><td>ทดสอบเฉพาะการแยกอาหารออกจากพื้นหลัง (1,000 ภาพ)</td></tr>
+    <tr><td><b>Tiny-ImageNet</b></td><td>ภาพทั่วไปที่ไม่ใช่อาหาร</td><td>ทั้งภาพเป็นพื้นหลัง</td><td>เทรน 800 ภาพ · ทดสอบ 300 ภาพ (สอนให้ food gate ปฏิเสธ)</td></tr>
+    <tr><td><b>อาหารไทยที่ตรวจแล้ว</b> (สร้างเอง)</td><td>ภาพจาก THFOOD-50 ครบ 50 เมนู</td><td>SAM วาดขอบ ตรวจและแก้ทีละส่วน</td><td>ทดสอบ 149 ภาพ · เทรน 345 ภาพ</td></tr>
+  </table>
+
+  <h3>6.2 องค์ประกอบข้อมูลเทรนของ v4 (16,450 แถว)</h3>
+  <table>
+    <tr><th>แหล่ง</th><th class="num">จำนวนแถว</th><th>หมายเหตุ</th></tr>
+    <tr><td>FoodSeg103 train</td><td class="num">7,574</td><td>4,982 ภาพ และใส่ซ้ำอีก 2,592 ภาพที่มีคลาสหายาก (ไข่ เต้าหู้/ถั่ว ผลไม้ ขนม ของเหลว)</td></tr>
+    <tr><td>THFOOD-50 pseudo-label</td><td class="num">5,808</td><td>สูงสุด 120 ภาพต่อเมนู สร้างป้ายตามวิธีในข้อ 6.3</td></tr>
+    <tr><td>อาหารไทยที่ตรวจแล้ว</td><td class="num">1,380</td><td>345 ภาพ ใส่ซ้ำ 4 รอบ ให้น้ำหนักสูงกว่า pseudo-label</td></tr>
+    <tr><td>Nutrition5k pseudo-label</td><td class="num">888</td><td></td></tr>
+    <tr><td>Tiny-ImageNet (ไม่ใช่อาหาร)</td><td class="num">800</td><td>ป้ายเป็นพื้นหลังทั้งภาพ food = 0</td></tr>
+  </table>
+
+  <h3>6.3 การสร้าง pseudo-label สำหรับภาพที่ไม่มีป้าย (training/relabel_thai.py)</h3>
+  <p>ภาพ THFOOD-50 มีแค่ชื่อเมนู จึงให้โมเดลรุ่นก่อน (teacher, v3) ติดป้ายให้ก่อน แล้วกรองให้สะอาดขึ้นสามชั้น:</p>
+  <ol>
+    <li><b>Test-time augmentation แบบกลับซ้ายขวา:</b> รันทั้งภาพปกติและภาพที่กลับซ้ายขวา แล้วเฉลี่ย logits ลดความผิดพลาดแบบสุ่ม</li>
+    <li><b>Dish prior:</b> แต่ละเมนูกำหนดคลาสที่เป็นไปได้ไว้ เช่น กะเพราจะมีได้แค่ โปรตีน ข้าว ไข่ ผัก ความน่าจะเป็นของคลาสที่ไม่ควรมีจะถูกตั้งเป็น 0 ก่อนเลือกคลาส ป้องกันความผิดแปลกๆ เช่น ผลไม้ในกะเพรา</li>
+    <li><b>Ignore label:</b> พิกเซลที่ความมั่นใจสูงสุดต่ำกว่า 0.60 ให้ค่า 255 (ไม่นำมาคิด loss) โดยเฉลี่ยตัดออก 8.0% ของพิกเซล หลักคือพิกเซลที่ไม่แน่ใจไม่ควรสอนอะไร ดีกว่าสอนสิ่งที่เดาไว้</li>
+  </ol>
+  <div class="note warn"><b>ข้อจำกัดของ pseudo-label:</b> ป้ายมาจากโมเดล teacher จึงมีอคติเดียวกับ teacher เช่น v3 มักอ่านหมูสับเป็นข้าว นักเรียนก็จะเรียนความผิดนั้นต่อไปด้วย ผลการทดลอง v3b ยืนยันเรื่องนี้ คือเพิ่มภาพไทยเป็นสองเท่าแต่แทบไม่ดีขึ้นบน FoodSeg103 นี่คือเหตุผลที่ต้องสร้างชุดข้อมูลที่ตรวจด้วยมือในหัวข้อ 7</div>
+</section>
+
+<!-- ============ 7 ============ -->
+<section>
+  <h2><span class="n">7</span>การสร้างป้ายกำกับอาหารไทย (SAM + การตรวจทีละส่วน)</h2>
+  <p>ไม่มีชุดข้อมูลอาหารไทยสาธารณะที่ติดป้ายระดับพิกเซล การวาดขอบด้วยมือทั้งหมดใช้เวลาประมาณ 10-20 นาทีต่อภาพ จึงออกแบบกระบวนการให้ <b>โมเดลวาดขอบ และคนตัดสินว่าแต่ละส่วนคืออะไร</b> ใช้เวลาเฉลี่ยราว 1-2 นาทีต่อภาพ</p>
+
+  <h3>7.1 การเลือกภาพ (training/select_thai.py)</h3>
+  <ul>
+    <li>ชุดทดสอบใช้ 3 ภาพต่อเมนู × 50 เมนู = 150 ภาพ ชุดเทรนใช้ 4 ภาพต่อเมนู บวกอีก 10 ภาพสำหรับ 15 เมนูที่ยาก (ข้าวราดหน้า อาหารคลุก โจ๊ก) รวม 346 ภาพ</li>
+    <li><b>ป้องกันข้อมูลรั่ว:</b> ภาพ THFOOD ทุกภาพที่เคยใช้เทรนในรุ่นใดก็ตาม (8,201 ภาพ) ถูกย่อเป็นภาพขาวดำ 16×16 แล้วเทียบระยะเฉลี่ยกับภาพที่จะเลือก ภาพที่ระยะต่ำกว่า 3.0 (ระดับสีจาก 0-255) ถือว่าเคยใช้แล้ว ไม่นำมาใช้เลย ทั้งในชุดทดสอบและชุดเทรนใหม่</li>
+  </ul>
+
+  <h3>7.2 ขั้นตอนต่อภาพ (training/sam_label.py)</h3>
+  <ol>
+    <li><b>SAM 2.1 (hiera-large) โหมดอัตโนมัติ</b> สร้างหน้ากากทั่วภาพ ตั้ง <code>pred_iou_thresh=0.7</code>, <code>stability_score_thresh=0.85</code> แล้วนำหน้ากากมาเรียงจากใหญ่ไปเล็ก ส่วนที่เล็กกว่าทับส่วนที่ใหญ่กว่า ได้แผนที่ส่วน (region) ที่ไม่ซ้อนกัน ส่วนที่เล็กกว่า 0.2% ของภาพถูกรวมเข้า "ส่วนที่เหลือ"</li>
+    <li><b>เติมช่องว่าง:</b> SAM มักไม่ครอบคลุมกองอาหารใหญ่ๆ เช่น กองหมูสับ พิกเซลที่ไม่มีส่วนจะถูกแบ่งตามคลาสที่โมเดลเดาและตาม connected component เป็นส่วนใหม่ (ขั้นต่ำ 0.4% ของภาพ) เพื่อให้ถูกตรวจด้วย</li>
+    <li><b>ข้อเสนอคลาส:</b> โมเดล (v3 สำหรับชุดทดสอบ, v3b สำหรับชุดเทรน) เสนอคลาสของแต่ละส่วนด้วยการโหวตเสียงข้างมากของพิกเซลในส่วนนั้น</li>
+    <li><b>แผ่นตรวจ (contact sheet):</b> ภาพต้นฉบับคู่กับภาพที่ระบายสีตามข้อเสนอ แต่ละส่วนมีหมายเลขและรหัสคลาสวางไว้ที่จุดลึกสุดของส่วน (คำนวณจาก distance transform) ป้ายจึงไม่ตกขอบหรือทับส่วนอื่น</li>
+    <li><b>การตรวจ:</b> ผู้ตรวจดูภาพทุกภาพแล้วบันทึกการแก้ลง <code>training/thai_labels.json</code> ได้หลายรูปแบบ:
+      <ul>
+        <li>แก้คลาสรายส่วน เช่น <code>"5": "P"</code> (ส่วนที่ 5 คือโปรตีน)</li>
+        <li><code>map</code> แก้คลาสทั้งภาพ เช่น <code>{"R": "P"}</code> (ทุกส่วนที่ถูกเสนอเป็นข้าวให้เป็นโปรตีน)</li>
+        <li><code>boxes</code> ระบายในกรอบสี่เหลี่ยม ใช้เมื่อ SAM รวมสองอย่างเป็นส่วนเดียว โดยกำหนดให้ระบายเฉพาะพิกเซลที่เป็นคลาสหนึ่งได้</li>
+        <li><code>X</code> = ไม่แน่ใจ (ignore) เช่น ซุปปนผัก ซอส เงา</li>
+        <li><code>v3</code> = ใช้ป้ายรายพิกเซลของโมเดลในส่วนที่ SAM ตัดคร่อมอาหารกับพื้นหลัง</li>
+        <li><code>skip</code> = ไม่ใช้ภาพนี้</li>
+      </ul></li>
+    <li><b>ตรวจซ้ำ:</b> เรนเดอร์ป้ายสุดท้ายเทียบกับภาพจริงอีกรอบ เพื่อจับความผิดพลาดจากการแก้</li>
+  </ol>
+
+  <h3>7.3 ผลลัพธ์</h3>
+  <table>
+    <tr><th></th><th class="num">ชุดทดสอบ</th><th class="num">ชุดเทรน</th></tr>
+    <tr><td>จำนวนภาพที่ใช้ (ข้ามภาพที่ใช้ไม่ได้ 2 ภาพ)</td><td class="num">149</td><td class="num">345</td></tr>
+    <tr><td>จำนวนเมนู</td><td class="num">50</td><td class="num">50</td></tr>
+    <tr><td>พิกเซลที่ตั้งเป็น "ไม่แน่ใจ" (ไม่ใช้วัดผลและไม่ใช้เทรน)</td><td class="num">4.5%</td><td class="num">4.8%</td></tr>
+    <tr><td>สัดส่วนพิกเซล: โปรตีนสัตว์ / ผัก / ไข่ / ข้าว</td><td class="num">22.0 / 15.6 / 4.3 / 3.6%</td><td class="num">23.8 / 13.6 / 4.1 / 5.6%</td></tr>
+  </table>
+  <p>มี 386 จาก 496 ภาพ (78%) ที่ต้องแก้อย่างน้อยหนึ่งส่วน ความผิดที่โมเดลเดิมทำซ้ำบ่อยที่สุด เช่น หมึกย่างเป็นข้าวหรือผัก, หมูสับ (กะเพรา คั่วกลิ้ง ลาบ) เป็นข้าว, โจ๊กเป็นพื้นหลัง, เส้นผัดไทยหรือวุ้นเส้นเป็นผัก, ไข่เจียวเป็นอาหารคลุก, เกี๊ยวเป็นไข่</p>
+  <div class="note warn"><b>ข้อควรระวัง:</b> ป้ายตรวจโดยผู้ตรวจคนเดียว ยังไม่มีการตรวจซ้ำโดยนักโภชนาการ และมีบางจุดเป็นการตัดสินใจเชิงนิยาม เช่น นับมะละกอดิบในส้มตำเป็นผัก นับไข่ตุ๋นเป็นไข่ และให้น้ำซุปเป็น liquid ถ้าใช้ตัวเลขเพื่อการแข่งขันหรือตีพิมพ์ ควรให้ผู้เชี่ยวชาญสุ่มตรวจสัก 30-50 ภาพ</div>
+</section>
+
+<!-- ============ 8 ============ -->
+<section>
+  <h2><span class="n">8</span>การเทรนโมเดล</h2>
+  <h3>8.1 การเตรียมภาพ (ใช้แบบเดียวกันทุกที่)</h3>
+  <ol>
+    <li>ย่อภาพโดยรักษาสัดส่วน ให้ด้านยาว = 512 พิกเซล ตอนเทรนสุ่มด้านยาวระหว่าง 384-512 (scale augmentation)</li>
+    <li>แปลงค่าเป็น 0-1 แล้ว normalize ด้วย mean (0.485, 0.456, 0.406) และ std (0.229, 0.224, 0.225)</li>
+    <li>เติมขอบขวาและล่างจนได้ 512×512 ด้วยการคัดลอกพิกเซลขอบ (edge padding) และตั้งป้ายของส่วนที่เติมเป็น 255 (ไม่คิด loss)</li>
+    <li>ย่อป้ายเป็น 128×128 ด้วย nearest neighbour ให้ตรงกับขนาดขาออกของโมเดล</li>
+  </ol>
+  <p>การเติมขอบแทนการบีบภาพเป็นสี่เหลี่ยมจัตุรัสช่วยให้อาหารไม่ผิดสัดส่วน ซึ่งสำคัญเพราะผลลัพธ์คือสัดส่วนพื้นที่</p>
+
+  <h3>8.2 Data augmentation (เฉพาะตอนเทรน)</h3>
+  <ul>
+    <li>กลับซ้ายขวา โอกาส 50%</li>
+    <li>ปรับแสง (brightness 0.75-1.25), contrast (0.8-1.2) และความอิ่มของสี (0.8-1.2) โอกาส 70% เพื่อรองรับแสงร้านอาหารที่ต่างกัน</li>
+    <li>สุ่มขนาด 384-512 ก่อนเติมขอบ</li>
+  </ul>
+
+  <h3>8.3 ฟังก์ชัน loss</h3>
+  <div class="formula">L = CE_weighted(seg) + 0.6 · Dice(seg) + 0.4 · BCE(food)
+
+CE_weighted : cross-entropy ถ่วงน้ำหนักรายคลาส, ignore_index = 255, label smoothing 0.03
+              น้ำหนัก [bg 0.5, rice 1.0, starch 1.1, animal 1.0, egg 1.4, plant 1.5,
+                       veg 1.0, fruit 1.4, mixed 1.2, sweets 1.3, liquid 1.2]
+Dice        : soft Dice เฉลี่ยเฉพาะคลาสที่ปรากฏใน batch (ไม่นับพิกเซล 255)
+BCE         : binary cross-entropy ของ food gate (อาหาร = 1, ไม่ใช่อาหาร = 0)</div>
+  <p>Cross-entropy ทำให้ทุกพิกเซลถูกต้อง ส่วน Dice ชดเชยคลาสพื้นที่เล็ก เช่น ไข่หรือผลไม้ ที่ cross-entropy มักมองข้าม และน้ำหนักพื้นหลังต่ำ (0.5) ช่วยไม่ให้โมเดลเลือกตอบพื้นหลังเพื่อความปลอดภัย</p>
+
+  <h3>8.4 Hyperparameters</h3>
+  <table>
+    <tr><th>ค่า</th><th>ตั้งไว้</th></tr>
+    <tr><td>Optimizer</td><td>AdamW, weight decay 0.01</td></tr>
+    <tr><td>Learning rate</td><td>encoder 6×10⁻⁵ · decoder และ food head 4×10⁻⁴ (หัวที่เริ่มใหม่เรียนเร็วกว่า)</td></tr>
+    <tr><td>Scheduler</td><td>OneCycleLR, warm-up 6% ของจำนวนขั้นทั้งหมด</td></tr>
+    <tr><td>Batch</td><td>4 ภาพ × gradient accumulation 3 = batch จริง 12</td></tr>
+    <tr><td>Precision</td><td>mixed precision (fp16 autocast + GradScaler)</td></tr>
+    <tr><td>Gradient clipping</td><td>norm 1.0</td></tr>
+    <tr><td>จำนวนรอบ</td><td>v3: 8 epoch · v3b และ v4: 6 epoch</td></tr>
+    <tr><td>เลือก checkpoint</td><td>รอบที่ได้ mIoU 5 กลุ่มสูงสุดบน FoodSeg103 val 500 ภาพแรก</td></tr>
+    <tr><td>ฮาร์ดแวร์</td><td>NVIDIA RTX 4060 8 GB · v4 ใช้เวลาราว 30 นาทีต่อรอบ (4,112 ขั้นต่อรอบ)</td></tr>
+  </table>
+
+  <h3>8.5 กราฟการเรียนรู้ของ v4</h3>
+  <table>
+    <tr><th>Epoch</th><th class="num">1</th><th class="num">2</th><th class="num">3</th><th class="num">4</th><th class="num">5</th><th class="num">6</th></tr>
+    <tr><td>mIoU 5 กลุ่ม (FoodSeg val 500 ภาพ)</td><td class="num">64.66</td><td class="num">67.03</td><td class="num">68.43</td><td class="num">69.00</td><td class="num">69.92</td><td class="num"><b>70.11</b></td></tr>
+  </table>
+  <p class="caption">คะแนนเพิ่มขึ้นทุกรอบจนถึงรอบสุดท้าย ไม่มีสัญญาณ overfit · ตัวเลขนี้คำนวณบน 500 ภาพ (ต่ำกว่าตัวเลขเต็ม 2,135 ภาพในหัวข้อ 11 เพราะนิยามกลุ่ม "อื่นๆ" ต่างกันเล็กน้อย)</p>
+</section>
+
+<!-- ============ 9 ============ -->
+<section>
+  <h2><span class="n">9</span>การแปลงโมเดลและการรันจริง (inference)</h2>
+  <h3>9.1 Export</h3>
+  <ul>
+    <li><b>ONNX fp32:</b> <code>torch.onnx.export</code> opset 17 ได้ไฟล์ 110.8 MB ใช้บนเซิร์ฟเวอร์ ความแม่นยำเต็ม</li>
+    <li><b>ONNX int8:</b> dynamic quantization (onnxruntime) เฉพาะ MatMul/Gemm น้ำหนักเป็น QUInt8 ได้ไฟล์ 54.7 MB ใช้ในเบราว์เซอร์ ความแม่นลดลงเล็กน้อย (หัวข้อ 11.3)</li>
+    <li>ไฟล์คำอธิบาย <code>model.json</code> เก็บรายชื่อคลาส ขนาดขาเข้า stride และ mean/std ให้ทุกที่อ่านค่าชุดเดียวกัน</li>
+  </ul>
+
+  <h3>9.2 ขั้นตอนหลังโมเดล</h3>
+  <ol>
+    <li><b>ตัดส่วนที่เติมขอบออก:</b> ใช้เฉพาะพื้นที่ (ความสูงจริง/4) × (ความกว้างจริง/4) ของแผนที่ 128×128</li>
+    <li><b>argmax</b> เลือกคลาสที่ logit สูงสุดต่อพิกเซล</li>
+    <li><b>ลบจุดเล็ก (speck removal):</b> คลาสที่มีพื้นที่รวมน้อยกว่า 0.3% ของภาพให้เป็นพื้นหลัง กันเศษสีเล็กๆ ที่ทำให้สัดส่วนเพี้ยน</li>
+    <li><b>Food gate:</b> ถือว่าภาพเป็นอาหารเมื่อ sigmoid(food_logit) ≥ 0.5 <b>และ</b> พื้นที่อาหารรวม ≥ 2% ของภาพ ถ้าไม่ผ่าน ให้แจ้งว่า "ไม่พบจานอาหาร"</li>
+    <li><b>นับพื้นที่</b> ของแต่ละคลาสเป็นสัดส่วนของภาพ แล้วส่งต่อให้ชั้นกฎโภชนาการ (หัวข้อ 10)</li>
+    <li><b>ภาพซ้อนสี (overlay):</b> แผนที่คลาสถูกระบายสีตามหมู่ ขยาย 4 เท่าแบบ bilinear ให้ขอบนุ่ม แล้ววางทับภาพจริงที่ความโปร่งใส 45%</li>
+  </ol>
+
+  <h3>9.3 ความเร็ว</h3>
+  <table>
+    <tr><th>ที่รัน</th><th>ไฟล์</th><th class="num">เวลาต่อภาพ</th></tr>
+    <tr><td>CPU คอมพิวเตอร์ 4 เธรด (onnxruntime)</td><td>int8</td><td class="num">≈ 0.54 วินาที</td></tr>
+    <tr><td>CPU คอมพิวเตอร์ 4 เธรด (onnxruntime)</td><td>fp32</td><td class="num">≈ 0.55 วินาที</td></tr>
+    <tr><td>เบราว์เซอร์ (onnxruntime-web WASM, 4 เธรด)</td><td>int8</td><td class="num">≈ 1.5 วินาที</td></tr>
+  </table>
+  <p class="caption">วัดบนเครื่องพัฒนา · เบราว์เซอร์บนมือถือจะช้ากว่านี้ตามสเปกเครื่อง และครั้งแรกต้องโหลดโมเดล 54.7 MB ก่อน จากนั้นเก็บไว้ใน Cache API</p>
+</section>
+
+<!-- ============ 10 ============ -->
+<section class="cont">
+  <h2><span class="n">10</span>การคำนวณสัดส่วนจานและคะแนน 2:1:1</h2>
+  <p>ฟังก์ชัน <code>plate_area()</code> ใน <code>backend/nutrition.py</code> รับพื้นที่ของแต่ละคลาส (สัดส่วนของภาพ 0-1) แล้วคำนวณดังนี้</p>
+  <div class="formula">1) พื้นที่หมู่ g  =  Σ_คลาส c  พื้นที่(c) × สัดส่วนแบ่ง(c → g)
+   - background ไม่นับ · liquid แยกเป็น liquid_coverage ไม่นับในจาน
+   - mixed_dish แบ่ง 65/25/10 (หรือตาม VLM ถ้ามี)
+
+2) อัตราส่วน 2:1:1 (ไม่รวมผลไม้)
+   main    = พื้นที่ผัก + พื้นที่แป้ง + พื้นที่โปรตีน
+   veg%    = 100 × ผัก / main     (เป้า 50)
+   carb%   = 100 × แป้ง / main    (เป้า 25)
+   prot%   = 100 × โปรตีน / main  (เป้า 25)
+
+3) คะแนน = max(0, 100 × (1 − D / 150))   โดย  D = |veg%−50| + |carb%−25| + |prot%−25|
+   150 คือ D มากที่สุดที่เป็นไปได้ (เช่น 0:100:0) คะแนนจึงอยู่ในช่วง 0-100 แบบเส้นตรง
+   ถ้า main = 0 (มีแต่ผลไม้หรือเครื่องดื่ม) จะไม่ให้คะแนน</div>
+  <p><b>ตัวอย่าง:</b> ข้าวมันไก่ที่วัดได้ ผัก 7% แป้ง 51% โปรตีน 42% จะได้ D = 43 + 26 + 17 = 86 คะแนน = 100 × (1 − 86/150) = 43 (แอปปัดเป็นจำนวนเต็ม)</p>
+  <h3>คำแนะนำ (ฟังก์ชัน advice)</h3>
+  <table class="keep">
+    <tr><th>เงื่อนไข</th><th>ข้อความที่แสดง (สรุป)</th></tr>
+    <tr><td>ผัก &lt; 35%</td><td>ผักน้อย ควรเพิ่มอีก 1-2 ทัพพี</td></tr>
+    <tr><td>แป้ง &gt; 35%</td><td>ลดข้าว หรือเปลี่ยนเป็นข้าวกล้อง</td></tr>
+    <tr><td>โปรตีน &lt; 15%</td><td>เพิ่มไข่ ปลา อกไก่ หรือเต้าหู้</td></tr>
+    <tr><td>โปรตีน &gt; 35%</td><td>เนื้อสัตว์มากเกินเป้า ลองเพิ่มผักแทน</td></tr>
+    <tr><td>ไม่เข้าเงื่อนไขใด</td><td>สัดส่วนใกล้เคียง 2:1:1 ดีแล้ว</td></tr>
+  </table>
+  <p class="caption">ตัวเลขในคำแนะนำปัดแบบครึ่งขึ้น ให้ตรงกับตัวเลขที่แอปแสดง</p>
+</section>
+
+<!-- ============ 11 ============ -->
+<section class="cont">
+  <h2><span class="n">11</span>วิธีวัดผลและผลการประเมิน</h2>
+  <h3>11.1 ตัวชี้วัด (training/evaluate.py)</h3>
+  <p>วัดจาก<b>ไฟล์ ONNX ที่ใช้งานจริง</b> ไม่ใช่จาก checkpoint ตอนเทรน ตัวเลขจึงรวมผลของการ export, quantization และขั้นตอนหลังโมเดลทั้งหมด</p>
+  <ul>
+    <li><b>IoU</b> (Intersection over Union) ของคลาสหรือกลุ่ม = พิกเซลที่ทายถูก ÷ (พิกเซลที่ทายว่าเป็น ∪ พิกเซลที่เป็นจริง) และ <b>mIoU</b> = ค่าเฉลี่ยของ IoU</li>
+    <li><b>mIoU 5 กลุ่ม:</b> พื้นหลัง โปรตีน แป้ง ผัก ผลไม้ ในพิกเซลที่ป้ายจริงเป็นอาหารคลุก ขนม หรือของเหลว จะไม่นับ เพื่อเทียบโมเดลที่มีคลาสต่างกันได้อย่างยุติธรรม ถ้าโมเดลทายเป็นคลาสเหล่านั้นบนพิกเซลที่เป็นอาหารชัดเจน จะนับเป็นการทายผิด</li>
+    <li><b>ค่าคลาดเคลื่อน 2:1:1</b> (ตัวเลขที่ผู้ใช้เห็นจริง) = ค่าเฉลี่ยของ |veg%−veg%จริง|, |carb%−carb%จริง|, |prot%−prot%จริง| ต่อจาน แล้วเฉลี่ยทุกจาน หน่วยเป็นจุดเปอร์เซ็นต์ ถ้าโมเดลไม่พบอาหารบนจานที่มีอาหารจริง ให้นับเป็นความผิดสูงสุด (66.7) บนชุดไทย พิกเซลที่ตั้งเป็น "ไม่แน่ใจ" จะไม่ถูกนำมาคิดทั้งฝั่งจริงและฝั่งที่ทาย</li>
+    <li><b>UEC food IoU:</b> IoU ของ "อาหาร vs พื้นหลัง" บนอาหารญี่ปุ่น</li>
+    <li><b>Non-food reject:</b> สัดส่วนภาพที่ไม่ใช่อาหารที่ระบบปฏิเสธถูกต้อง และ <b>THFOOD recognised:</b> สัดส่วนภาพอาหารไทยที่ระบบยอมรับว่าเป็นอาหาร</li>
+  </ul>
+
+  <h3>11.2 ผลบนชุดทดสอบอาหารไทย (149 จาน, 50 เมนู)</h3>
+  <table>
+    <tr><th>โมเดล (ไฟล์)</th><th class="num">2:1:1 เฉลี่ย ↓</th><th class="num">มัธยฐาน ↓</th><th class="num">mIoU 5 กลุ่ม ↑</th><th class="num">โปรตีน</th><th class="num">แป้ง</th><th class="num">ผัก</th><th class="num">ผลไม้</th><th class="num">mIoU 11 คลาส</th></tr>
+    <tr><td>v3 int8</td><td class="num">15.99</td><td class="num">6.93</td><td class="num">57.39</td><td class="num">59.7</td><td class="num">29.8</td><td class="num">69.0</td><td class="num">38.2</td><td class="num">31.29</td></tr>
+    <tr><td>v3 fp32</td><td class="num">14.09</td><td class="num">6.53</td><td class="num">61.16</td><td class="num">65.0</td><td class="num">32.1</td><td class="num">71.0</td><td class="num">47.0</td><td class="num">33.07</td></tr>
+    <tr><td>v3b fp32</td><td class="num">11.58</td><td class="num">5.13</td><td class="num">72.48</td><td class="num">72.3</td><td class="num">40.4</td><td class="num">71.8</td><td class="num">87.2</td><td class="num">41.20</td></tr>
+    <tr><td>v4 int8 (เบราว์เซอร์)</td><td class="num">12.25</td><td class="num">4.20</td><td class="num">68.94</td><td class="num">70.3</td><td class="num">40.8</td><td class="num">69.3</td><td class="num">73.9</td><td class="num">42.31</td></tr>
+    <tr class="best"><td>v4 fp32 (เซิร์ฟเวอร์)</td><td class="num">10.66</td><td class="num">3.53</td><td class="num">71.09</td><td class="num">75.1</td><td class="num">41.9</td><td class="num">71.3</td><td class="num">76.1</td><td class="num">43.02</td></tr>
+  </table>
+  <p class="caption">ผลไม้มีพิกเซลน้อยมากในชุดไทย (0.6%) ค่า IoU ผลไม้จึงแกว่งได้มากตามภาพเพียงไม่กี่ภาพ ตัวชี้วัดหลักคือค่าคลาดเคลื่อน 2:1:1</p>
+
+  <h4>IoU รายคลาสของ v4 fp32 บนอาหารไทย</h4>
+  <table>
+    <tr><th>คลาส</th><th class="num">bg</th><th class="num">rice</th><th class="num">starch</th><th class="num">animal</th><th class="num">egg</th><th class="num">plant</th><th class="num">veg</th><th class="num">fruit</th><th class="num">mixed</th><th class="num">sweets</th><th class="num">liquid</th></tr>
+    <tr><td>IoU (%)</td><td class="num">85.4</td><td class="num">43.5</td><td class="num">36.9</td><td class="num">75.8</td><td class="num">44.4</td><td class="num">1.1</td><td class="num">69.8</td><td class="num">74.6</td><td class="num">18.8</td><td class="num">19.7</td><td class="num">3.4</td></tr>
+  </table>
+  <h4>เมนูที่ยังคลาดมากที่สุด (v4 fp32, ค่าคลาดเคลื่อน 2:1:1 เฉลี่ยของเมนู)</h4>
+  <p>โจ๊ก 52.9 · หอยลายผัดพริกเผา 50.7 · เกี๊ยว 40.3 · คั่วกลิ้ง 23.9 · ผัดไทย 20.5 · แกงมัสมั่นไก่ 18.5 · แกงเขียวหวาน 17.3 · ไข่เจียวหมูสับ 16.9</p>
+  <p class="caption">แต่ละเมนูมีแค่ 3 ภาพในชุดทดสอบ ตัวเลขรายเมนูจึงใช้ดูแนวโน้ม ไม่ใช่ตัวเลขแม่นยำ</p>
+
+  <h3>11.3 ผลบนชุดทดสอบมาตรฐาน</h3>
+  <table>
+    <tr><th>โมเดล (ไฟล์)</th><th class="num">FoodSeg mIoU 5 กลุ่ม</th><th class="num">2:1:1 เฉลี่ย</th><th class="num">2:1:1 มัธยฐาน</th><th class="num">mIoU 11 คลาส</th><th class="num">UEC food IoU</th><th class="num">ปฏิเสธ non-food</th><th class="num">รับอาหารไทย</th><th class="num">ms/ภาพ (CPU)</th></tr>
+    <tr><td>v2 int8</td><td class="num">73.63</td><td class="num">13.62</td><td class="num">7.27</td><td class="num">—</td><td class="num">82.67</td><td class="num">100%</td><td class="num">100%</td><td class="num">562</td></tr>
+    <tr><td>v3 int8</td><td class="num">76.58</td><td class="num">8.14</td><td class="num">2.73</td><td class="num">60.66</td><td class="num">80.70</td><td class="num">100%</td><td class="num">100%</td><td class="num">537</td></tr>
+    <tr><td>v3b int8</td><td class="num">76.36</td><td class="num">8.36</td><td class="num">2.80</td><td class="num">60.14</td><td class="num">80.42</td><td class="num">100%</td><td class="num">100%</td><td class="num">535</td></tr>
+    <tr class="best"><td>v4 fp32</td><td class="num">77.14</td><td class="num">8.07</td><td class="num">2.47</td><td class="num">61.30</td><td class="num">81.82</td><td class="num">100%</td><td class="num">100%</td><td class="num">548</td></tr>
+  </table>
+  <p class="caption">FoodSeg103 val 2,135 ภาพ · UECFoodPix val 1,000 ภาพ · Tiny-ImageNet non-food 300 ภาพ (ขนาด 64×64 ซึ่งต่างจากรูปมือถือจริง) · THFOOD-50 eval 50 ภาพ</p>
+
+  <div class="note"><b>สรุปผล:</b> v4 ดีขึ้นมากบนอาหารไทย (ค่าคลาดเคลื่อนลดจาก 14.1 เหลือ 10.7 จุด และค่ามัธยฐานลดจาก 6.5 เหลือ 3.5) โดยไม่แย่ลงบนอาหารทั่วไป (FoodSeg103 ดีขึ้นเล็กน้อย) ช่องว่างระหว่างอาหารไทยกับ FoodSeg103 ยังมี (10.7 เทียบกับ 8.1) เพราะอาหารไทยมีของซ้อนกัน มีน้ำแกง และมีอาหารคลุกมากกว่า</div>
+</section>
+
+<!-- ============ 12 ============ -->
+<section class="cont">
+  <h2><span class="n">12</span>ประวัติรุ่นของโมเดล v2 → v4</h2>
+  <table>
+    <tr><th>รุ่น</th><th>สิ่งที่เปลี่ยน</th><th>ผล / บทเรียน</th></tr>
+    <tr><td><b>v1-v2</b></td><td>SegFormer-B2 แบบ multi-task: หัวแบ่งพื้นที่ หัวทำนายสัดส่วนรวม และหัว food gate · ใช้ Depth-Anything-V2 ประมาณปริมาตร · แบ่งผัก 70/30 ระหว่างหมู่ 3 และหมู่ 4 · ไขมันคิดเป็นสัดส่วนตายตัวของเนื้อสัตว์</td><td>ตัวเลขจากหัวทำนายสัดส่วนไม่ตรงกับสีที่ระบายบนภาพ · ค่าคงที่หลายค่าตั้งด้วยมือโดยไม่มีหลักฐาน · หมู่ 3/4 ผิดนิยาม</td></tr>
+    <tr><td><b>v3</b></td><td>ออกแบบคลาสใหม่ 11 คลาสให้ตรงกับหมู่อาหาร (เพิ่มเต้าหู้/ถั่ว ขนม ของเหลว) · ตัดหัวทำนายสัดส่วนและ depth ออก · ใช้ loss CE+Dice+BCE · คะแนน 2:1:1 คำนวณจากพื้นที่</td><td>2:1:1 บน FoodSeg ลดจาก 13.6 เหลือ 8.1 · แต่ยังพบว่าอ่านหมูสับเป็นข้าว</td></tr>
+    <tr><td><b>v3b</b></td><td>ภาพไทยเพิ่มเป็น 5,808 ภาพ ด้วย pseudo-label ที่ผ่าน flip-TTA + dish prior + ignore · ใส่ภาพที่มีคลาสหายากซ้ำ</td><td>บน FoodSeg แทบไม่ต่างจาก v3 เพราะป้ายมาจาก v3 เอง จึงเรียนความผิดเดิม แต่บนอาหารไทยดีขึ้น (11.6) ซึ่งเพิ่งรู้หลังมีชุดทดสอบไทย</td></tr>
+    <tr><td><b>v4</b> (ใช้งาน)</td><td>เพิ่มป้ายไทยที่ตรวจด้วยมือ 345 ภาพ (ใส่ซ้ำ ×4) จากกระบวนการ SAM ในหัวข้อ 7</td><td>ดีที่สุดทั้งบนอาหารไทย (10.7) และ FoodSeg (8.07)</td></tr>
+  </table>
+  <div class="note"><b>บทเรียนสำคัญ:</b> (1) ต้องมีชุดทดสอบที่ตรงกับผู้ใช้จริง ถ้าวัดแค่ FoodSeg103 เราจะคิดว่า v3b แย่กว่า v3 ทั้งที่บนอาหารไทยดีกว่าชัดเจน (2) การเพิ่มข้อมูลที่ป้ายมาจากโมเดลเดิมช่วยได้จำกัด ข้อมูลที่ตรวจโดยคนแม้มีไม่มากก็ให้ผลชัดกว่า (3) quantization int8 ทำให้แย่ลงราว 1.5-2 จุดบนอาหารไทย บนเซิร์ฟเวอร์จึงใช้ fp32</div>
+</section>
+
+<!-- ============ 13 ============ -->
+<section class="cont">
+  <h2><span class="n">13</span>ระบบที่นำไปใช้งาน (เว็บ แอป เซิร์ฟเวอร์)</h2>
+  <h3>13.1 เว็บ (รันโมเดลในเบราว์เซอร์)</h3>
+  <ul>
+    <li>โมเดล int8 รันใน Web Worker ด้วย onnxruntime-web 1.20.1 (WebAssembly) ใช้หลายเธรดเมื่อหน้าเว็บอยู่ในสถานะ cross-origin isolated (header COOP: same-origin และ COEP: credentialless)</li>
+    <li>ไฟล์โมเดลเก็บใน Cache API หลังโหลดครั้งแรก และใช้แบบออฟไลน์ได้</li>
+    <li>รูปภาพไม่ถูกส่งออกจากเครื่องผู้ใช้</li>
+  </ul>
+  <h3>13.2 เซิร์ฟเวอร์ (FastAPI)</h3>
+  <table>
+    <tr><th>Endpoint</th><th>หน้าที่</th></tr>
+    <tr><td><code>GET /api/health</code></td><td>สถานะ เวอร์ชันโมเดล และว่าต้องใช้รหัสเข้าใช้งานไหม</td></tr>
+    <tr><td><code>POST /api/analyze-image</code></td><td>รับรูป JPEG/PNG (multipart, ≤ 8 MB) และ energy_level · หมุนตาม EXIF · รันโมเดล fp32 · ส่งกลับสัดส่วน คะแนน คำแนะนำ และภาพซ้อนสี PNG</td></tr>
+    <tr><td><code>POST /api/analyze</code></td><td>สำหรับเว็บ: รับพื้นที่ที่เบราว์เซอร์คำนวณแล้ว (ใช้คู่กับส่วนเสริม VLM)</td></tr>
+  </table>
+  <p>ด้านความปลอดภัยและค่าใช้จ่าย: มีรหัสเข้าใช้งานแบบ header <code>X-Access-Code</code> (เทียบด้วย constant-time compare) · จำกัด 20 รูปต่อนาทีต่อ IP · <b>ไม่บันทึกรูป</b> log เก็บแค่ขนาดรูปและเวลาที่ใช้ · Dockerfile รันด้วยผู้ใช้ที่ไม่ใช่ root และโหลดโมเดลตั้งแต่เปิดเซิร์ฟเวอร์</p>
+  <h3>13.3 แอปมือถือ (Expo / React Native, iOS + Android)</h3>
+  <ul>
+    <li>ถ่ายรูปหรือเลือกจากคลัง → ย่อเหลือด้านยาว 1,280 px (ประมาณ 250 KB) → ส่งไปวิเคราะห์ → เก็บรูปและผลในเครื่อง (AsyncStorage + ไฟล์ใน document directory)</li>
+    <li>หน้าวันนี้ (จานเฉลี่ยของวัน) · หน้าผลของมื้อ (รูปพร้อมภาพซ้อนสี แผนภาพจาน คำแนะนำ) · ประวัติ 7 วัน · ตั้งค่าระดับพลังงาน</li>
+    <li>ใช้ Liquid Glass ของระบบบน iOS 26 (expo-glass-effect) และ blur ของระบบบน Android/เว็บ</li>
+  </ul>
+</section>
+
+<!-- ============ 14 ============ -->
+<section class="cont">
+  <h2><span class="n">14</span>ส่วนเสริม: การอ่านเมนูด้วย Vision-Language Model</h2>
+  <p>มีโค้ดใน <code>backend/vlm.py</code> สำหรับส่งภาพให้ Claude (claude-opus-5-5) อ่านชื่อเมนู วิธีปรุง ส่วนประกอบ และปริมาณในหน่วยธงโภชนาการ (ทัพพี ช้อนกินข้าว ส่วน) รวมถึงประเมินน้ำมันและน้ำตาลเป็นช้อนชา ผลบังคับรูปแบบด้วย JSON schema (structured output) และใช้สัดส่วนอาหารคลุกที่ VLM ประเมินแทนค่ามาตรฐาน 65/25/10 ได้</p>
+  <div class="note warn"><b>สถานะ:</b> ปิดไว้ในเวอร์ชันปัจจุบัน และยังไม่ได้ทดสอบกับ API จริง จะทำงานเมื่อตั้ง <code>ANTHROPIC_API_KEY</code> เท่านั้น ถ้าเปิดใช้จะมีค่าใช้จ่ายต่อรูปและภาพจะถูกส่งไปยังผู้ให้บริการภายนอก ซึ่งต้องแก้นโยบายความเป็นส่วนตัวให้ตรงกัน การประเมินปริมาณจากภาพเดียวในงานวิจัยปัจจุบันยังคลาดเคลื่อนได้ราว 30-40%</div>
+</section>
+
+<!-- ============ 15 ============ -->
+<section class="cont">
+  <h2><span class="n">15</span>ข้อจำกัดและงานต่อไป</h2>
+  <h3>ข้อจำกัดที่ทราบ</h3>
+  <ul>
+    <li><b>พื้นที่ไม่ใช่ปริมาณ:</b> อาหารที่กองสูง ซ้อนกัน หรือจมในน้ำแกง จะถูกนับตามพื้นที่ที่มองเห็นเท่านั้น</li>
+    <li><b>หมู่ 5 ไขมันวัดไม่ได้</b> จากภาพ</li>
+    <li><b>คลาสที่ยังอ่อน:</b> เต้าหู้/ถั่ว (IoU 1.1 บนอาหารไทย) · ของเหลว (3.4) · อาหารคลุก (18.8) · ขนม (19.7) · ข้าวในโจ๊กและข้าวต้ม</li>
+    <li><b>ชุดทดสอบไทยมีขนาดเล็ก</b> (3 ภาพต่อเมนู) และป้ายตรวจโดยผู้ตรวจคนเดียว</li>
+    <li><b>ภาพจาก THFOOD-50 เป็นภาพจากอินเทอร์เน็ต</b> ซึ่งต่างจากภาพที่จะได้จากกล้องห้อยคอทั้งมุมกล้อง แสง และความละเอียด</li>
+    <li>ภาพทดสอบ non-food เป็นภาพ 64×64 ซึ่งง่ายกว่าภาพจริง</li>
+  </ul>
+  <h3>งานต่อไปที่แนะนำ (เรียงตามผลที่คาดว่าจะได้)</h3>
+  <ol>
+    <li><b>เก็บภาพจากอุปกรณ์จริง</b> 200-500 ภาพ แล้ว label ด้วยกระบวนการในหัวข้อ 7 ทั้งเป็นชุดทดสอบใหม่และชุดเทรน เป็นสิ่งที่จะบอกความแม่นจริงของผลิตภัณฑ์</li>
+    <li><b>เพิ่มป้ายตรวจด้วยมือสำหรับเมนูที่อ่อน:</b> โจ๊ก ข้าวต้ม อาหารทะเลผัด เกี๊ยว แกงกะทิ เต้าหู้</li>
+    <li><b>ชุดข้อมูล MyFoodRepo-273</b> (24,119 ภาพ ป้ายโดยมนุษย์ CC-BY-4.0) ต้องลงทะเบียนกับ AIcrowd ก่อนดาวน์โหลด</li>
+    <li>ลองโมเดลใหญ่ขึ้น (SegFormer-B4/B5) สำหรับเซิร์ฟเวอร์ ซึ่งไม่มีข้อจำกัดขนาดไฟล์</li>
+    <li>ปรับ quantization ของเวอร์ชันเบราว์เซอร์ (static quantization พร้อม calibration หรือ fp16) เพื่อลดช่องว่าง 1.5 จุดจาก fp32</li>
+    <li>ให้นักโภชนาการสุ่มตรวจป้ายชุดทดสอบ</li>
+  </ol>
+</section>
+
+<!-- ============ 16 ============ -->
+<section class="cont">
+  <h2><span class="n">16</span>ภาคผนวก: ไฟล์และคำสั่งสำหรับทำซ้ำ</h2>
+  <table>
+    <tr><th>ไฟล์</th><th>หน้าที่</th></tr>
+    <tr><td><code>backend/taxonomy.py</code></td><td>คลาส การแปลง FoodSeg103 และการแบ่งเข้าหมู่</td></tr>
+    <tr><td><code>backend/nutrition.py</code></td><td>สัดส่วนจาน คะแนน 2:1:1 ธงโภชนาการ คำแนะนำ</td></tr>
+    <tr><td><code>backend/inference.py</code></td><td>รันโมเดลบนเซิร์ฟเวอร์ และสร้างภาพซ้อนสี</td></tr>
+    <tr><td><code>backend/app.py</code>, <code>ratelimit.py</code></td><td>API และการจำกัดคำขอ</td></tr>
+    <tr><td><code>training/train_segformer_v3.py</code></td><td>สร้างชุดข้อมูล เทรน export</td></tr>
+    <tr><td><code>training/relabel_thai.py</code></td><td>pseudo-label (flip-TTA, dish prior, ignore)</td></tr>
+    <tr><td><code>training/select_thai.py</code>, <code>sam_label.py</code></td><td>เลือกภาพไทย และกระบวนการ label ด้วย SAM</td></tr>
+    <tr><td><code>training/thai_labels.json</code></td><td>บันทึกการตรวจป้ายทั้ง 496 ภาพ</td></tr>
+    <tr><td><code>training/evaluate.py</code></td><td>วัดผลจากไฟล์ ONNX จริง</td></tr>
+    <tr><td><code>public/models/model.json</code></td><td>บอกว่าเว็บใช้โมเดลไฟล์ไหน (ปัจจุบัน v4)</td></tr>
+  </table>
+  <div class="formula"># เทรน v4 (GPU)
+RUN_TAG=v4 RUN_DATA=datasets_cache/compiled_v4_train.parquet \
+  python -c "import sys; sys.path.insert(0,'training'); import train_segformer_v3 as t; t.train(epochs=6); t.export()"
+
+# วัดผลไฟล์ ONNX (รวมชุดทดสอบไทยอัตโนมัติ)
+python training/evaluate.py models/segformer_v4_fp32.onnx public/models/segformer_v4.json
+
+# สร้างชุดข้อมูลไทยจากบันทึกการตรวจ
+python training/sam_label.py build
+
+# รันเซิร์ฟเวอร์ในเครื่อง / ทดสอบ
+python -m uvicorn backend.app:app --port 8000
+python -m pytest -q tests</div>
+  <h3>เอกสารอ้างอิง</h3>
+  <ol style="font-size:9.4pt">
+    <li>Xie, E. et al. "SegFormer: Simple and Efficient Design for Semantic Segmentation with Transformers." NeurIPS 2021.</li>
+    <li>Wu, X. et al. "A Large-Scale Benchmark for Food Image Segmentation" (FoodSeg103). ACM MM 2021.</li>
+    <li>Ravi, N. et al. "SAM 2: Segment Anything in Images and Videos." Meta AI, 2024 (ใช้ checkpoint SAM 2.1 hiera-large).</li>
+    <li>Okamoto, K. & Yanai, K. "UEC-FoodPix Complete." ICPR 2020.</li>
+    <li>THFOOD-50: ชุดภาพอาหารไทย 50 เมนู (ใช้สำเนาบน Hugging Face Hub ที่มีแค่ชื่อเมนู)</li>
+    <li>Thames, Q. et al. "Nutrition5k: Towards Automatic Nutritional Understanding of Generic Food." CVPR 2021.</li>
+    <li>กรมอนามัย กระทรวงสาธารณสุข. ธงโภชนาการ, หวาน มัน เค็ม 6:6:1 และจานสุขภาพ 2:1:1.</li>
+  </ol>
+</section>
+
+</body>
+</html>

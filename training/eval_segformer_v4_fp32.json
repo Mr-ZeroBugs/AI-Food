@@ -1,0 +1,81 @@
+{
+  "model": "segformer_v4_fp32.onnx",
+  "version": "v4",
+  "thai_test": {
+    "n": 149,
+    "plate_group_mIoU": 71.09,
+    "plate_group_IoU": {
+      "background": 91.07,
+      "protein": 75.13,
+      "carb": 41.86,
+      "veg": 71.26,
+      "fruit": 76.11
+    },
+    "ratio_211_MAE_pp": 10.66,
+    "ratio_211_MAE_median_pp": 3.53,
+    "worst_dishes_211_MAE": {
+      "Joke": 52.9,
+      "HoyLaiPrikPao": 50.7,
+      "Dumpling": 40.3,
+      "KuaKling": 23.9,
+      "PadThai": 20.5,
+      "MassamanGai": 18.5,
+      "GaengKeawWan": 17.3,
+      "KaiJeowMooSaap": 16.9
+    },
+    "class_mIoU": 43.02,
+    "class_IoU": {
+      "background": 85.36,
+      "rice": 43.48,
+      "other_starch": 36.87,
+      "animal_protein": 75.77,
+      "egg": 44.35,
+      "plant_protein": 1.1,
+      "vegetable": 69.78,
+      "fruit": 74.59,
+      "mixed_dish": 18.82,
+      "sweets": 19.72,
+      "liquid": 3.36
+    }
+  },
+  "foodseg103_val": {
+    "n": 2135,
+    "plate_group_mIoU": 77.14,
+    "plate_group_IoU": {
+      "background": 90.69,
+      "protein": 75.5,
+      "carb": 71.2,
+      "veg": 76.43,
+      "fruit": 71.9
+    },
+    "ratio_211_MAE_pp": 8.07,
+    "ratio_211_MAE_median_pp": 2.47,
+    "class_mIoU": 61.3,
+    "class_IoU": {
+      "background": 89.63,
+      "rice": 69.83,
+      "other_starch": 63.48,
+      "animal_protein": 73.18,
+      "egg": 40.75,
+      "plant_protein": 32.82,
+      "vegetable": 75.85,
+      "fruit": 70.16,
+      "mixed_dish": 37.67,
+      "sweets": 53.13,
+      "liquid": 67.77
+    }
+  },
+  "uecfoodpix_val": {
+    "n": 1000,
+    "food_IoU": 81.82
+  },
+  "nonfood_tiny_imagenet": {
+    "n": 300,
+    "reject_pct": 100.0
+  },
+  "thfood50_samples": {
+    "n": 50,
+    "recognised_as_food_pct": 100.0
+  },
+  "cpu_ms_median": 547.8
+}

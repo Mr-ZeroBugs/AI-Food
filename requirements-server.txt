@@ -1,0 +1,5 @@
+# Inference server for the mobile app and wearable (POST /api/analyze-image).
+-r requirements.txt
+onnxruntime>=1.18.0
+numpy>=1.26
+pillow>=10.0

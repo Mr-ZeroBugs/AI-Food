@@ -1,0 +1,29 @@
+{
+  "n_val": 2135,
+  "class_mIoU": 59.29,
+  "class_IoU": {
+    "background": 90.6,
+    "rice": 67.0,
+    "other_starch": 66.66,
+    "animal_protein": 73.29,
+    "egg": 47.97,
+    "plant_protein": 23.28,
+    "vegetable": 73.82,
+    "fruit": 65.34,
+    "mixed_dish": 41.6,
+    "sweets": 44.62,
+    "liquid": 57.98
+  },
+  "group_mIoU": 70.17,
+  "group_IoU": {
+    "background": 90.6,
+    "protein": 71.68,
+    "carb": 69.03,
+    "veg": 73.82,
+    "fruit": 65.34,
+    "other": 50.57
+  },
+  "pixel_acc": 87.64,
+  "food_recall": 100.0,
+  "nonfood_reject_tiny_imagenet": 100.0
+}
