@@ -180,7 +180,8 @@ function hero({ photo, mask, caption, score, ratio, href, tall }) {
     <div class="hero-shade"></div>
     <div class="hero-chrome">
       <span class="brand glass">${LOGO}<b>KinWhy AI</b></span>
-      <span class="date-chip glass">${TH_DAYS[d.getDay()]} ${d.getDate()} ${TH_MON[d.getMonth()]}</span>
+      <span class="chrome-end"><span class="date-chip glass">${TH_DAYS[d.getDay()]} ${d.getDate()} ${TH_MON[d.getMonth()]}</span>
+        <a class="info-btn glass" href="#/about" aria-label="เกี่ยวกับ KinWhy AI"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg></a></span>
     </div>
     <${href ? `a href="${href}"` : 'div'} class="hero-card glass dense">
       <div class="hero-card-top">${plateSvg(ratio, 64)}
