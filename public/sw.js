@@ -1,6 +1,6 @@
 // Offline support: the app shell and the onnxruntime-web runtime are cached so KinWhy AI opens and
 // analyses without a connection after the first visit. The model file itself is cached by the worker.
-const SHELL = 'kinwhy-shell-v2';
+const SHELL = 'kinwhy-shell-v3';
 const RUNTIME = 'kinwhy-runtime-v1';
 const ASSETS = ['./', 'index.html', 'styles.css', 'app.js', 'lib/plate.js', 'lib/segment.js', 'lib/store.js',
   'segmenter.worker.js', 'manifest.webmanifest', 'icons/icon-192.png', 'models/model.json'];

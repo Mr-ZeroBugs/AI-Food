@@ -66,8 +66,8 @@ export function advice(plate) {
 }
 
 export function scoreWord(s) {
-  if (s >= 85) return 'ใกล้ 2:1:1 มาก';
+  if (s >= 85) return 'สมดุลดีมาก';
   if (s >= 70) return 'ค่อนข้างสมดุล';
-  if (s >= 50) return 'ยังเอียงไปบางหมู่';
-  return 'ห่างจาก 2:1:1';
+  if (s >= 50) return 'เกือบแล้ว ปรับอีกนิด';
+  return 'ยังไม่สมดุล';
 }

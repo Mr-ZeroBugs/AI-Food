@@ -25,7 +25,7 @@ const SAMPLES = [
 ];
 // Hero sample shown before the first meal: a real v4 result, precomputed (public/demo).
 const DEMO = { photo: 'samples/khaopad_goong_real.jpg', mask: 'demo/khaopad_goong_real-mask.png', name: 'ข้าวผัดกุ้ง', score: 79, ratio: { veg: 53.7, carb: 37.1, protein: 9.2 } };
-const SLOTS = [['เช้า', 0, 11], ['กลางวัน', 11, 16], ['เย็น', 16, 24]];
+const SLOTS = [['เช้า', 0, 11, 'sunrise'], ['กลางวัน', 11, 16, 'sun'], ['เย็น', 16, 24, 'moon']];
 let sampleScores = {};
 fetch('demo/samples.json').then((r) => r.json()).then((j) => { sampleScores = j; if (document.querySelector('.sample-row')) render(); }).catch(() => {});
 const DAY = 86_400_000;
@@ -65,6 +65,34 @@ function average(meals) {
 }
 
 // ---------- pieces ----------
+// Score colour: green when close to 2:1:1, amber in between, coral when far.
+const tone = (s) => (s >= 70 ? 'good' : s >= 50 ? 'ok' : 'low');
+function ring(score, size = 64, cls = '') {
+  const s = Math.round(score);
+  return `<span class="ring ${tone(s)} ${cls}" style="--p:${s};--s:${size}px" role="img" aria-label="คะแนน ${s} จาก 100"><b class="num">${s}</b></span>`;
+}
+const ICON = {
+  sunrise: '<path d="M4 18h16M7 18a5 5 0 0 1 10 0M12 6v3M5.6 10.6l1.8 1.4M18.4 10.6l-1.8 1.4M3 21h18"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/>',
+  moon: '<path d="M19 14.5A7.5 7.5 0 0 1 9.5 5a7.5 7.5 0 1 0 9.5 9.5z"/>',
+  leaf: '<path d="M5 19c0-8 5-13 14-14 0 9-5 14-13 14M5 19l7-7"/>',
+  bowl: '<path d="M3 11h18a9 9 0 0 1-18 0zM8 7c0-1 1-1 1-2M12 7c0-1 1-1 1-2M16 7c0-1 1-1 1-2"/>',
+  fish: '<path d="M3 12c3-5 9-6 13-2l5-3v10l-5-3c-4 4-10 3-13-2z"/><circle cx="8" cy="11" r=".6"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+};
+const icon = (k, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON[k]}</svg>`;
+// Which food group a tip is about (the tip text comes from plate.js and is shared with the Python tests).
+function tipKind(t) {
+  if (t.startsWith('ผัก')) return ['veg', 'leaf'];
+  if (t.startsWith('ข้าว')) return ['carb', 'bowl'];
+  if (t.startsWith('โปรตีน') || t.startsWith('เนื้อสัตว์')) return ['prot', 'fish'];
+  return ['good', 'check'];
+}
+function greeting() {
+  const h = new Date().getHours();
+  return h < 11 ? 'สวัสดีตอนเช้า' : h < 16 ? 'สวัสดีตอนกลางวัน' : 'สวัสดีตอนเย็น';
+}
 function plateSvg(ratio, size = 124) {
   // Real shares clockwise from 12 o'clock; rim ticks mark where 2:1:1 would put each boundary.
   const c = size / 2, rim = c - 2, food = rim - size * 0.07;
@@ -99,7 +127,7 @@ function emptyPlate(size) {
 function shares(ratio) {
   return `<div class="shares">${PLATE_KEYS.map((k) => {
     const v = Math.max(0, Math.min(100, ratio[k])), t = TARGET[k], gap = Math.round(v - t);
-    const note = Math.abs(gap) < 3 ? `ตรงเป้า ${t}%` : `เป้า ${t}% · ${gap > 0 ? 'เกิน' : 'ขาด'} ${Math.abs(gap)}`;
+    const note = Math.abs(gap) < 3 ? `ตรงเป้า ${t}%` : `เป้า ${t}% · ${gap > 0 ? 'เกินมา' : 'ขาดอีก'} ${Math.abs(gap)}%`;
     return `<div><div class="share-top"><span class="dot" style="background:${GROUPS[k].color}"></span><b>${GROUPS[k].label}</b>
       <b class="num">${Math.round(v)}%</b><span class="target num">${note}</span></div>
       <div class="track"><span style="width:${v}%;background:${GROUPS[k].color}"></span><i style="left:${t}%"></i></div></div>`;
@@ -122,7 +150,7 @@ function mealRow(m) {
   return `<a class="meal-row" href="#/meal/${esc(m.id)}">
     <img src="${blobUrl(m.photo)}" alt="" loading="lazy">
     <div class="text"><div class="h">${h}</div><div class="s">${s}</div></div>
-    ${score !== null && score !== undefined ? `<div class="big">${score}</div>` : ''}
+    ${score !== null && score !== undefined ? ring(score, 46, 'sm') : ''}
     <svg class="ic chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></a>`;
 }
 
@@ -144,6 +172,7 @@ function pills(ratio) {
 }
 
 function hero({ photo, mask, caption, score, ratio, href, tall }) {
+  // The colour map sweeps across once to show what the model read, then fades so the food looks like food.
   const d = new Date();
   return `<section class="today-hero${tall ? ' tall' : ''}">
     <img class="hero-photo" src="${photo}" alt="">
@@ -156,20 +185,20 @@ function hero({ photo, mask, caption, score, ratio, href, tall }) {
     <${href ? `a href="${href}"` : 'div'} class="hero-card glass dense">
       <div class="hero-card-top">${plateSvg(ratio, 64)}
         <div class="hc-text"><div class="hc-cap">${caption}</div><div class="verdict">${score === null ? 'ยังไม่มีคะแนน' : scoreWord(score)}</div></div>
-        <div class="hc-score num">${score === null ? '–' : Math.round(score)}</div></div>
+        ${score === null ? '' : ring(score, 64, 'hc-score')}</div>
       ${pills(ratio)}
     </${href ? 'a' : 'div'}>
   </section>`;
 }
 
-function slotTile(name, meal) {
+function slotTile(name, meal, ic) {
   if (!meal) {
-    return `<label class="slot empty" for="file-input"><span class="slot-plus" aria-hidden="true">+</span><span class="slot-name">${name}</span><span class="slot-sub">ถ่ายมื้อนี้</span></label>`;
+    return `<label class="slot empty" for="file-input"><span class="slot-ic">${icon(ic)}</span><span class="slot-name">${name}</span><span class="slot-sub">${icon('camera', 'xs')}ถ่ายมื้อนี้</span></label>`;
   }
   const r = meal.result, score = r?.isFood ? r.plate.score : null;
   const sub = meal.status === 'analyzing' ? 'กำลังวิเคราะห์' : meal.status === 'error' ? 'ไม่สำเร็จ' : score === null ? (r && !r.isFood ? 'ไม่พบอาหาร' : 'ไม่มีคะแนน') : scoreWord(score);
   return `<a class="slot" href="#/meal/${esc(meal.id)}"><img src="${blobUrl(meal.photo)}" alt="">
-    ${score !== null && score !== undefined ? `<span class="slot-score glass num">${score}</span>` : ''}
+    ${score !== null && score !== undefined ? `<span class="slot-score num ${tone(score)}">${score}</span>` : ''}
     <span class="slot-label"><span class="slot-name">${name}</span><span class="slot-sub">${sub}</span></span></a>`;
 }
 
@@ -192,7 +221,7 @@ function sampleRow() {
     const sc = sampleScores[k]?.score;
     return `<button class="sample" data-sample="${k}" role="listitem" aria-label="ลองกับ${name}">
       <img src="samples/${k}.jpg" alt="" loading="lazy"><span class="sample-name">${name}</span>
-      ${sc !== undefined && sc !== null ? `<span class="sample-score glass num">${Math.round(sc)}</span>` : ''}</button>`;
+      ${sc !== undefined && sc !== null ? `<span class="sample-score num ${tone(sc)}">${Math.round(sc)}</span>` : ''}</button>`;
   }).join('')}</div>`;
 }
 
@@ -212,16 +241,16 @@ async function viewToday() {
     })
     : hero({ photo: DEMO.photo, mask: DEMO.mask, caption: `ตัวอย่าง · ${DEMO.name}`, score: DEMO.score, ratio: DEMO.ratio, tall: true });
 
-  const bySlot = SLOTS.map(([name, from, to]) => [name, todays.filter((m) => { const h = new Date(m.createdAt).getHours(); return h >= from && h < to; })]);
-  const extra = bySlot.flatMap(([, list]) => list.slice(1));
+  const bySlot = SLOTS.map(([name, from, to, ic]) => [name, ic, todays.filter((m) => { const h = new Date(m.createdAt).getHours(); return h >= from && h < to; })]);
+  const extra = bySlot.flatMap(([, , list]) => list.slice(1));
 
   return `<div class="today">
     ${heroHtml}
     <div class="today-body">
       <div id="model-slot">${modelStatusHtml()}</div>
-      <header class="today-head"><h1>${todays.length ? 'มื้อของวันนี้' : 'วันนี้กินอะไรดี'}</h1>
-        <p>${todays.length ? `${todays.length} มื้อ · ${fullDate(Date.now())}` : 'ถ่ายจากด้านบนให้เห็นทั้งจาน แล้วดูว่าใกล้จาน 2:1:1 แค่ไหน'}</p></header>
-      <div class="slots">${bySlot.map(([name, list]) => slotTile(name, list[0])).join('')}</div>
+      <header class="today-head"><div class="hello">${greeting()}</div><h1>${todays.length ? 'มื้อของวันนี้' : 'วันนี้กินอะไรดี'}</h1>
+        <p>${todays.length ? `${todays.length} มื้อ · ${fullDate(Date.now())}` : 'ถ่ายจากมุมบนให้เห็นทั้งจาน แล้วดูว่าใกล้จาน 2:1:1 แค่ไหน'}</p></header>
+      <div class="slots">${bySlot.map(([name, ic, list]) => slotTile(name, list[0], ic)).join('')}</div>
       ${extra.length ? `<div class="section-label">มื้ออื่นวันนี้</div><div class="group">${extra.map(mealRow).join('')}</div>` : ''}
       ${avg ? `<div class="section-label">สัดส่วนเฉลี่ยวันนี้</div><div class="group pad">${shares(avg.ratio)}</div>` : ''}
       <div class="section-label">ลองกับรูปตัวอย่าง · โมเดลทำงานในเครื่องนี้</div>
@@ -249,8 +278,8 @@ async function viewMeal(id) {
   } else if (plate && plate.score === null) {
     body = `<div class="state"><h2>ไม่มีผัก ข้าว หรือโปรตีนให้เทียบ</h2><p>จานนี้มีแต่ผลไม้หรือเครื่องดื่ม จึงไม่ได้ให้คะแนน 2:1:1</p></div>`;
   } else if (plate) {
-    body = `<div class="panel-head">${plateSvg(plate.ratio, 92)}<div><div class="verdict">${scoreWord(plate.score)}</div>
-      <div class="small muted">คะแนนจาน 2:1:1 เต็ม 100</div></div><div class="score">${plate.score}</div></div>${shares(plate.ratio)}`;
+    body = `<div class="panel-head">${plateSvg(plate.ratio, 84)}<div class="ph-text"><div class="verdict">${scoreWord(plate.score)}</div>
+      <div class="small muted">คะแนน 2:1:1 จาก 100</div></div>${ring(plate.score, 76, 'score')}</div>${shares(plate.ratio)}`;
   }
   return `<div class="hero" style="height:${h}px;--h:${h - 2}px">
       <img src="${blobUrl(m.photo)}" alt="รูปมื้ออาหาร">
@@ -265,7 +294,7 @@ async function viewMeal(id) {
     </div>
     <div class="panel-wrap"><div class="panel glass dense"><div class="when">${dayLabel(m.createdAt)} · ${timeLabel(m.createdAt)}</div>${body}</div></div>
     ${food ? `<div class="below">
-      ${food.advice.length ? `<div class="group pad block"><h3>คำแนะนำ</h3><ul class="tips">${food.advice.map((a) => `<li>${esc(a)}</li>`).join('')}</ul></div>` : ''}
+      ${food.advice.length ? `<div class="group pad block"><h3>ปรับจานนี้ให้ดีขึ้น</h3><ul class="tips">${food.advice.map((a) => { const [k, ic] = tipKind(a); return `<li><span class="tip-ic ${k}">${icon(ic)}</span><span>${esc(a)}</span></li>`; }).join('')}</ul></div>` : ''}
       ${plate.liquidCoverage > 0.05 ? `<div class="warn">มีน้ำซุปหรือเครื่องดื่มในภาพ ส่วนนี้ไม่นับในสัดส่วนจาน</div>` : ''}
       <div class="group pad block"><h3>สิ่งที่โมเดลเห็นในภาพ</h3>
         ${food.detected.map((d) => `<div class="kv"><span>${esc(d.name)}</span><span>${d.pct}% ของภาพ</span></div>`).join('')}
@@ -394,6 +423,9 @@ async function render() {
   $view.innerHTML = html;
   // The result panel rises once when the meal opens, not again each time its data updates.
   if (sameRoute) $view.querySelectorAll('.panel, .hero-photo, .hero-mask, .hero-card').forEach((p) => { p.style.animation = 'none'; p.style.clipPath = 'none'; });
+  // The today-hero colour map has already swept and faded; keep it faded on data refreshes.
+  if (sameRoute) $view.querySelectorAll('.today-hero .hero-mask').forEach((m) => { m.style.opacity = '0'; });
+  $view.querySelectorAll('.ring').forEach((r) => { if (sameRoute) r.style.animation = 'none'; });
   prevUrls.forEach((u) => URL.revokeObjectURL(u));
   document.querySelectorAll('.tab').forEach((a) => {
     if (a.dataset.tab === tab) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');

@@ -4,31 +4,39 @@
    control floats over content (dock, controls on a photo, the result panel over a photo). */
 
 :root {
-  --ground: #F4F3EE; --surface: #FFFFFF; --surface-2: #FAF9F5;
-  --ink: #1C1B17; --ink-2: #5E5C55; --ink-3: #85827A;
-  --line: rgba(28, 27, 23, .10); --line-strong: rgba(28, 27, 23, .18);
+  --ground: #F6F1E8; --surface: #FFFDF9; --surface-2: #FBF6EE;
+  --ink: #2A2420; --ink-2: #6B6158; --ink-3: #8F857B;
+  --line: rgba(60, 40, 20, .09); --line-strong: rgba(60, 40, 20, .17);
   --tint: #1D7F4E; --tint-ink: #FFFFFF; --tint-soft: rgba(29, 127, 78, .10);
   --danger: #B3261E; --warn-ink: #7A4F00; --warn-bg: #FDF3DC;
   --veg: #22A05A; --carb: #E09A00; --prot: #E5484D; --fruit: #8E4EC6;
+  --veg-soft: #E3F4E8; --carb-soft: #FCF0D6; --prot-soft: #FCE4E2;
+  --good: #1D8A55; --ok: #D08300; --low: #DD4B3C; --track: rgba(60, 40, 20, .09);
   --glass-fill: rgba(255, 255, 255, .55); --glass-edge: rgba(255, 255, 255, .75);
   --glass-shade: rgba(28, 27, 23, .10); --glass-text: #1C1B17;
-  --shadow-1: 0 1px 2px rgba(28, 27, 23, .05), 0 2px 8px rgba(28, 27, 23, .04);
+  /* Layered neutral elevation (beautiful-shadows md), warmed slightly to sit on cream. */
+  --shadow-1: 0 0 0 1px rgba(60, 40, 20, .05), 0 1px 1px -.5px rgba(60, 40, 20, .05), 0 3px 3px -1.5px rgba(60, 40, 20, .05),
+    0 6px 6px -3px rgba(60, 40, 20, .05), 0 12px 12px -6px rgba(60, 40, 20, .04), 0 24px 24px -12px rgba(60, 40, 20, .04);
   --shadow-float: 0 10px 30px rgba(28, 27, 23, .16), 0 2px 6px rgba(28, 27, 23, .08);
-  --r-sm: 10px; --r-md: 16px; --r-lg: 24px; --r-xl: 30px;
+  --r-sm: 12px; --r-md: 20px; --r-lg: 26px; --r-xl: 32px;
   --ease: cubic-bezier(.16, 1, .3, 1);
-  --font: "IBM Plex Sans Thai", "Leelawadee UI", "Thonburi", system-ui, sans-serif;
+  /* Looped Thai for reading (softer, easier for everyday readers); loopless Plex for headings and numbers. */
+  --font: "IBM Plex Sans Thai Looped", "IBM Plex Sans Thai", "Leelawadee UI", "Thonburi", system-ui, sans-serif;
+  --font-head: "IBM Plex Sans Thai", "Leelawadee UI", "Thonburi", system-ui, sans-serif;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --ground: #0F100E; --surface: #1A1B18; --surface-2: #22231F;
-    --ink: #F4F3EE; --ink-2: #B5B2A8; --ink-3: #8C897F;
-    --line: rgba(244, 243, 238, .10); --line-strong: rgba(244, 243, 238, .18);
+    --ground: #14120F; --surface: #1F1C18; --surface-2: #27231E;
+    --ink: #F5EFE6; --ink-2: #BDB3A6; --ink-3: #91877B;
+    --line: rgba(245, 239, 230, .10); --line-strong: rgba(245, 239, 230, .18);
+    --veg-soft: rgba(34, 160, 90, .18); --carb-soft: rgba(224, 154, 0, .18); --prot-soft: rgba(229, 72, 77, .18);
+    --good: #4CC488; --ok: #F0AE3A; --low: #FF7A6B; --track: rgba(245, 239, 230, .12);
     --tint: #4CC488; --tint-ink: #08130D; --tint-soft: rgba(76, 196, 136, .14);
     --danger: #FF8A80; --warn-ink: #F2C46B; --warn-bg: rgba(240, 165, 0, .14);
     --glass-fill: rgba(40, 41, 37, .52); --glass-edge: rgba(255, 255, 255, .16);
     --glass-shade: rgba(0, 0, 0, .35); --glass-text: #F4F3EE;
-    --shadow-1: none;
+    --shadow-1: 0 0 0 1px rgba(245, 239, 230, .06);
     --shadow-float: 0 12px 34px rgba(0, 0, 0, .5), 0 2px 6px rgba(0, 0, 0, .35);
     color-scheme: dark;
   }
@@ -373,3 +381,103 @@ a.hero-card:hover { filter: brightness(1.02); }
 }
 .week-empty { display: grid; gap: 14px; justify-items: start; }
 .week-empty p { margin: 0; }
+
+
+/* =====================================================================
+   Friendlier pass (2026-11-20): warm cream ground, looped body type,
+   score rings coloured by how close the plate is, icons on meal slots
+   and on tips so each one says which food group it is about.
+   ===================================================================== */
+h1, h2, h3, .verdict, .slot-name, .num, .brand b { font-family: var(--font-head); }
+.title h1, .today-head h1 { letter-spacing: 0; }
+.section-label { font-weight: 600; color: var(--ink-2); margin-top: 30px; }
+.hello { color: var(--good); font-weight: 600; font-size: 15px; margin-bottom: 2px; }
+.ic.xs { width: 14px; height: 14px; stroke-width: 2; }
+
+/* Score ring: arc fills to the score, number in the middle. */
+@property --p { syntax: '<number>'; inherits: true; initial-value: 0; }
+.ring {
+  --w: 6px; --c: var(--good);
+  position: relative; flex: none; display: grid; place-items: center;
+  width: var(--s); height: var(--s); border-radius: 50%;
+  animation: ringfill 1.1s .2s var(--ease) both;
+}
+.ring::before {
+  content: ""; position: absolute; inset: 0; border-radius: 50%;
+  background: conic-gradient(var(--c) calc(var(--p) * 1%), var(--track) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - var(--w)), #000 calc(100% - var(--w) + .5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - var(--w)), #000 calc(100% - var(--w) + .5px));
+}
+@keyframes ringfill { from { --p: 0; } }
+.ring b { font-size: calc(var(--s) * .38); font-weight: 700; line-height: 1; color: var(--ink); }
+.ring.ok { --c: var(--ok); } .ring.low { --c: var(--low); }
+.ring.sm { --w: 4px; }
+.ring.score { --w: 7px; margin-left: auto; }
+.hero-card .ring { margin-left: auto; }
+.glass .ring { --track: rgba(60, 40, 20, .10); }
+@media (prefers-color-scheme: dark) { .glass .ring { --track: rgba(255, 255, 255, .14); } }
+
+/* Score chips on photos: solid tone colour, readable on any food. */
+.slot-score, .sample-score { color: #fff; background: var(--good); box-shadow: 0 2px 8px rgba(0, 0, 0, .18); }
+.slot-score.ok, .sample-score.ok { background: var(--ok); }
+.slot-score.low, .sample-score.low { background: var(--low); }
+@media (prefers-color-scheme: dark) { .slot-score, .sample-score { color: #14120F; } }
+
+/* Today hero: colour map sweeps in, holds, then fades so the photo reads as food. */
+.today-hero .hero-mask { animation: sweep 1.6s .35s cubic-bezier(.65, 0, .35, 1) forwards, maskfade 1s 3.4s ease forwards; }
+@keyframes maskfade { to { opacity: 0; } }
+.hero-card { padding: 14px 14px 14px 12px; }
+.hero-card .verdict { font-size: 19px; }
+
+/* Meal slots */
+.slot { border-radius: var(--r-md); box-shadow: var(--shadow-1); }
+.slot.empty {
+  border: 0; background: var(--surface); box-shadow: var(--shadow-1); gap: 6px; color: var(--ink-2);
+}
+.slot.empty:hover { background: var(--surface); color: var(--ink-2); transform: translateY(-2px); }
+.slot.empty { transition: transform .3s var(--ease); }
+.slot-ic { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; background: var(--tint-soft); color: var(--good); margin-bottom: 2px; }
+.slot-ic .ic { width: 24px; height: 24px; }
+.slot.empty .slot-sub { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; opacity: 1; }
+.slot-plus { display: none; }
+
+/* Cards */
+.group { border-radius: var(--r-md); }
+.explain { gap: 16px; align-items: flex-start; }
+.explain > svg { width: 84px; height: 84px; margin-top: 4px; }
+.sample img { border-radius: 18px; }
+
+/* Shares: thicker friendlier bars, quieter target notch. */
+.track { height: 10px; border-radius: 5px; background: var(--track); }
+.track > span { border-radius: 5px; }
+.track > i { top: -3px; height: 16px; width: 3px; margin-left: -1.5px; border-radius: 2px; background: var(--ink); opacity: .55; box-shadow: 0 0 0 2px var(--surface); }
+.glass .track > i { box-shadow: none; }
+.share-top .target { font-size: 13px; }
+
+/* Meal detail */
+.panel-head { gap: 14px; }
+.ph-text { min-width: 0; }
+.panel-head .verdict { font-size: 20px; }
+.tips { gap: 12px; }
+.tips li { align-items: flex-start; gap: 12px; line-height: 1.5; }
+.tips li::before { display: none; }
+.tip-ic { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; margin-top: -2px; }
+.tip-ic .ic { width: 19px; height: 19px; }
+.tip-ic.veg { background: var(--veg-soft); color: var(--veg); }
+.tip-ic.carb { background: var(--carb-soft); color: #B37800; }
+.tip-ic.prot { background: var(--prot-soft); color: var(--prot); }
+.tip-ic.good { background: var(--tint-soft); color: var(--good); }
+@media (prefers-color-scheme: dark) { .tip-ic.carb { color: var(--carb); } }
+
+/* Rows */
+.meal-row img { border-radius: 14px; }
+.meal-row .ring { margin-left: 4px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ring { animation: none; }
+  .today-hero .hero-mask { animation: none; opacity: .4; }
+}
+/* Colour map keeps the photo's light and texture (hue only), so food under it still looks like food. */
+.hero .mask, .today-hero .hero-mask { mix-blend-mode: color; }
+.hero .mask { opacity: .55; }
+.today-hero .hero-mask { opacity: .7; }
