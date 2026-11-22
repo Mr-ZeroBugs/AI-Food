@@ -80,6 +80,9 @@ const ICON = {
   bowl: '<path d="M3 11h18a9 9 0 0 1-18 0zM8 7c0-1 1-1 1-2M12 7c0-1 1-1 1-2M16 7c0-1 1-1 1-2"/>',
   fish: '<path d="M3 12c3-5 9-6 13-2l5-3v10l-5-3c-4 4-10 3-13-2z"/><circle cx="8" cy="11" r=".6"/>',
   check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  calendar: '<rect x="4" y="5" width="16" height="15" rx="3"/><path d="M4 10h16M9 3v4M15 3v4"/>',
+  chevL: '<path d="M14.5 6 8.5 12l6 6"/>',
+  chevR: '<path d="M9.5 6l6 6-6 6"/>',
   camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
 };
 const icon = (k, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON[k]}</svg>`;
@@ -316,14 +319,82 @@ async function viewHistory() {
   const byDay = new Map();
   for (const m of meals) { const d = startOfDay(m.createdAt); if (!byDay.has(d)) byDay.set(d, []); byDay.get(d).push(m); }
   return `<div class="page">
-    <header class="title"><h1>ประวัติ</h1><p>7 วันล่าสุด</p></header>
+    <header class="title title-row"><div><h1>ประวัติ</h1><p>7 วันล่าสุด</p></div>
+      <a class="cal-btn" href="#/calendar">${icon('calendar')}<span>ปฏิทิน</span></a></header>
     <div class="group week">
-      <div class="days">${week.map((d) => `<div class="day${d.start === today ? ' today' : ''}">${d.avg ? plateSvg(d.avg.ratio, 38) : emptyPlate(38)}<span>${TH_D[new Date(d.start).getDay()]}</span></div>`).join('')}</div>
+      <div class="days">${week.map((d) => `<a class="day${d.start === today ? ' today' : ''}" href="#/day/${dayKey(d.start)}" aria-label="${dayLabel(d.start)}">${d.avg ? plateSvg(d.avg.ratio, 38) : emptyPlate(38)}<span>${TH_D[new Date(d.start).getDay()]}</span></a>`).join('')}</div>
       ${wavg ? `<div><div class="verdict" style="font-size:17px">${scoreWord(wavg.score)}</div><div class="callout muted num">เฉลี่ย ${Math.round(wavg.score)} คะแนน จาก ${wavg.n} มื้อ</div></div>${shares(wavg.ratio)}`
         : `<div class="week-empty"><p class="callout muted">ยังไม่มีมื้อในสัปดาห์นี้ พอถ่ายแล้วแต่ละวันจะกลายเป็นจานเล็กๆ ตรงนี้ บอกสัดส่วนของวันนั้น</p>
             <div class="btn-row"><label class="btn" for="file-input">ถ่ายมื้อแรก</label><button class="btn quiet" data-action="demo-load">ดูตัวอย่าง 7 วัน</button></div></div>`}
     </div>
     ${[...byDay.entries()].map(([d, list]) => { const a = average(list); return `<div class="section-label">${dayLabel(d)}${a ? ` · เฉลี่ย ${Math.round(a.score)}` : ''}</div><div class="group">${list.map(mealRow).join('')}</div>`; }).join('')}
+  </div>`;
+}
+
+// ---------- calendar ----------
+const dayKey = (t) => { const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+const fromKey = (k) => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d).getTime(); };
+let calMonth = null; // first day of the month on screen
+
+async function viewCalendar() {
+  const meals = await allMeals();
+  const today = startOfDay(Date.now());
+  if (calMonth === null) { const d = new Date(today); calMonth = new Date(d.getFullYear(), d.getMonth(), 1).getTime(); }
+  const m0 = new Date(calMonth);
+  const y = m0.getFullYear(), mo = m0.getMonth();
+  const daysIn = new Date(y, mo + 1, 0).getDate();
+  const byDay = new Map();
+  for (const m of meals) { const k = startOfDay(m.createdAt); if (!byDay.has(k)) byDay.set(k, []); byDay.get(k).push(m); }
+  const cells = [];
+  for (let i = 0; i < m0.getDay(); i++) cells.push('<span class="cal-cell blank"></span>');
+  for (let d = 1; d <= daysIn; d++) {
+    const t = new Date(y, mo, d).getTime();
+    const list = byDay.get(t) || [];
+    const a = average(list);
+    const future = t > today;
+    const cls = ['cal-cell', t === today ? 'today' : '', list.length ? 'has' : '', future ? 'future' : ''].join(' ');
+    const mark = a ? `<i class="cal-dot ${tone(a.score)}"></i>` : list.length ? '<i class="cal-dot"></i>' : '';
+    cells.push(future ? `<span class="${cls}"><b class="num">${d}</b></span>`
+      : `<a class="${cls}" href="#/day/${dayKey(t)}" aria-label="${dayLabel(t)}${list.length ? ` ${list.length} มื้อ` : ''}"><b class="num">${d}</b>${mark}</a>`);
+  }
+  const thisMonth = new Date(today).getMonth() === mo && new Date(today).getFullYear() === y;
+  const monthMeals = meals.filter((m) => { const d = new Date(m.createdAt); return d.getFullYear() === y && d.getMonth() === mo; });
+  const ma = average(monthMeals);
+  return `<div class="page">
+    <header class="title title-row"><div><h1>ปฏิทิน</h1><p>แตะวันที่เพื่อดูมื้อของวันนั้น</p></div>
+      <a class="cal-btn" href="#/history">ประวัติ</a></header>
+    <div class="group cal">
+      <div class="cal-head">
+        <button class="icon-btn" data-action="cal-prev" aria-label="เดือนก่อน">${icon('chevL')}</button>
+        <div class="cal-title">${TH_MONTHS[mo]} ${y + 543}</div>
+        <button class="icon-btn" data-action="cal-next" aria-label="เดือนถัดไป" ${thisMonth ? 'disabled' : ''}>${icon('chevR')}</button>
+      </div>
+      <div class="cal-grid">${TH_D.map((d) => `<span class="cal-wd">${d}</span>`).join('')}${cells.join('')}</div>
+      <div class="cal-legend small muted"><span><i class="cal-dot good"></i>ใกล้ 2:1:1</span><span><i class="cal-dot ok"></i>กลางๆ</span><span><i class="cal-dot low"></i>ยังห่าง</span></div>
+    </div>
+    ${ma ? `<div class="callout muted num cal-sum">เดือนนี้ ${monthMeals.length} มื้อ · เฉลี่ย ${Math.round(ma.score)} คะแนน</div>` : ''}
+  </div>`;
+}
+
+async function viewDay(key) {
+  const start = fromKey(key);
+  const today = startOfDay(Date.now());
+  const list = (await allMeals()).filter((m) => m.createdAt >= start && m.createdAt < start + DAY).sort((a, b) => a.createdAt - b.createdAt);
+  const a = average(list);
+  const d = new Date(start);
+  const prev = dayKey(start - DAY / 2 - 1), next = dayKey(start + DAY + DAY / 2);
+  return `<div class="page">
+    <header class="title title-row"><div><h1>${dayLabel(start)}</h1><p>${fullDate(start)}</p></div>
+      <a class="cal-btn" href="#/calendar">${icon('calendar')}<span>ปฏิทิน</span></a></header>
+    <div class="day-nav">
+      <a class="icon-btn" href="#/day/${prev}" aria-label="วันก่อนหน้า">${icon('chevL')}</a>
+      <span class="small muted">${TH_DAYS[d.getDay()]}</span>
+      ${start < today ? `<a class="icon-btn" href="#/day/${next}" aria-label="วันถัดไป">${icon('chevR')}</a>` : '<span class="icon-btn" aria-hidden="true"></span>'}
+    </div>
+    ${a ? `<div class="group week"><div class="panel-head">${plateSvg(a.ratio, 72)}<div class="ph-text"><div class="verdict">${scoreWord(a.score)}</div>
+        <div class="small muted num">เฉลี่ยทั้งวัน จาก ${a.n} มื้อ</div></div>${ring(a.score, 64, 'score')}</div>${shares(a.ratio)}</div>` : ''}
+    ${list.length ? `<div class="section-label">มื้อทั้งหมด · ${list.length} มื้อ</div><div class="group">${list.map(mealRow).join('')}</div>`
+      : `<div class="group week-empty"><p class="callout muted">${start === today ? "วันนี้ยังไม่มีมื้อ" : "วันนั้นไม่มีมื้อที่บันทึกไว้"}</p>${start === today ? '<label class="btn" for="file-input">ถ่ายมื้อนี้</label>' : ''}</div>`}
   </div>`;
 }
 
@@ -405,6 +476,8 @@ $view.addEventListener('click', async (e) => {
     case 'clear':
       if (confirm('ลบประวัติทั้งหมด? รูปและผลวิเคราะห์ในเครื่องนี้จะหายทั้งหมด กู้คืนไม่ได้')) { await clearMeals(); toast('ลบประวัติแล้ว'); }
       break;
+    case 'cal-prev': { const d = new Date(calMonth); calMonth = new Date(d.getFullYear(), d.getMonth() - 1, 1).getTime(); render(); break; }
+    case 'cal-next': { const d = new Date(calMonth); calMonth = new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime(); render(); break; }
     case 'retry-model': loadModel().catch(() => {}); render(); break;
     case 'demo-load': {
       try { localStorage.removeItem('kinwhy-demo-off'); } catch { /* ignore */ }
@@ -423,10 +496,12 @@ let renderSeq = 0;
 async function render() {
   const seq = ++renderSeq;
   const hash = location.hash || '#/';
-  const tab = hash.startsWith('#/history') ? 'history' : hash.startsWith('#/about') ? 'about' : hash.startsWith('#/meal') ? null : 'today';
+  const tab = hash.startsWith('#/history') || hash.startsWith('#/calendar') || hash.startsWith('#/day/') ? 'history' : hash.startsWith('#/about') ? 'about' : hash.startsWith('#/meal') ? null : 'today';
   const prevUrls = urls; urls = [];
   let html;
   if (hash.startsWith('#/meal/')) html = await viewMeal(decodeURIComponent(currentMealId()));
+  else if (hash.startsWith('#/calendar')) html = await viewCalendar();
+  else if (/^#\/day\/\d{4}-\d{2}-\d{2}$/.test(hash)) html = await viewDay(hash.slice(6));
   else if (tab === 'history') html = await viewHistory();
   else if (tab === 'about') html = await viewAbout();
   else html = await viewToday();
