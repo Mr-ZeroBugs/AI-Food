@@ -3,7 +3,7 @@
 import { scoreWord, TARGET } from './lib/plate.js';
 import { analyze, loadModel, modelStatus, onModelStatus, shrinkPhoto } from './lib/segment.js';
 import { allMeals, clearMeals, deleteMeal, getMeal, onChange, putMeal } from './lib/store.js';
-import { clearDemoHistory, hasDemoHistory, loadDemoHistory } from './lib/demo-history.js';
+import { clearDemoHistory, hasDemoHistory, loadDemoHistory, seedDemoForVisitor, dropDemoIfRealMeals } from './lib/demo-history.js';
 
 const $view = document.getElementById('view');
 const $file = document.getElementById('file-input');
@@ -321,7 +321,7 @@ async function viewHistory() {
       <div class="days">${week.map((d) => `<div class="day${d.start === today ? ' today' : ''}">${d.avg ? plateSvg(d.avg.ratio, 38) : emptyPlate(38)}<span>${TH_D[new Date(d.start).getDay()]}</span></div>`).join('')}</div>
       ${wavg ? `<div><div class="verdict" style="font-size:17px">${scoreWord(wavg.score)}</div><div class="callout muted num">เฉลี่ย ${Math.round(wavg.score)} คะแนน จาก ${wavg.n} มื้อ</div></div>${shares(wavg.ratio)}`
         : `<div class="week-empty"><p class="callout muted">ยังไม่มีมื้อในสัปดาห์นี้ พอถ่ายแล้วแต่ละวันจะกลายเป็นจานเล็กๆ ตรงนี้ บอกสัดส่วนของวันนั้น</p>
-            <div class="btn-row"><label class="btn" for="file-input">ถ่ายมื้อแรก</label><button class="btn quiet" data-action="demo-load">ดูตัวอย่าง 3 วัน</button></div></div>`}
+            <div class="btn-row"><label class="btn" for="file-input">ถ่ายมื้อแรก</label><button class="btn quiet" data-action="demo-load">ดูตัวอย่าง 7 วัน</button></div></div>`}
     </div>
     ${[...byDay.entries()].map(([d, list]) => { const a = average(list); return `<div class="section-label">${dayLabel(d)}${a ? ` · เฉลี่ย ${Math.round(a.score)}` : ''}</div><div class="group">${list.map(mealRow).join('')}</div>`; }).join('')}
   </div>`;
@@ -344,7 +344,7 @@ async function viewAbout() {
       <div class="row-link"><span>โมเดล</span><span class="end num">${s.state === 'ready' ? `${esc(s.version)} · ${s.threads} เธรด` : s.state === 'loading' ? 'กำลังโหลด' : 'ยังไม่ได้โหลด'}</span></div>
       <button class="row-link" data-action="clear" ${n ? '' : 'disabled style="opacity:.4"'}><span style="color:var(--danger);font-weight:600">ลบประวัติทั้งหมด</span><span class="end num">${n} มื้อ</span></button>
       ${demo ? `<button class="row-link" data-action="demo-clear"><span>ลบประวัติตัวอย่าง</span><span class="end">เก็บมื้อของคุณไว้</span></button>`
-        : `<button class="row-link" data-action="demo-load"><span style="color:var(--tint);font-weight:600">ใส่ประวัติตัวอย่าง 3 วัน</span><span class="end">สำหรับดูเดโม</span></button>`}
+        : `<button class="row-link" data-action="demo-load"><span style="color:var(--tint);font-weight:600">ใส่ประวัติตัวอย่าง 7 วัน</span><span class="end">สำหรับดูเดโม</span></button>`}
     </div>
     <div class="section-label">จาน 2:1:1</div>
     ${targetCard()}
@@ -407,12 +407,13 @@ $view.addEventListener('click', async (e) => {
       break;
     case 'retry-model': loadModel().catch(() => {}); render(); break;
     case 'demo-load': {
+      try { localStorage.removeItem('kinwhy-demo-off'); } catch { /* ignore */ }
       const n = await loadDemoHistory();
       toast(`ใส่ตัวอย่าง ${n} มื้อแล้ว`);
       location.hash = '#/history';
       break;
     }
-    case 'demo-clear': await clearDemoHistory(); toast('ลบประวัติตัวอย่างแล้ว'); break;
+    case 'demo-clear': await clearDemoHistory({ optOut: true }); toast('ลบประวัติตัวอย่างแล้ว'); break;
   }
 });
 
@@ -482,7 +483,11 @@ function buildRefraction() {
 if (new URLSearchParams(location.search).has('demo')) {
   history.replaceState(null, '', location.pathname + '#/history');
   loadDemoHistory().catch(() => {});
+} else {
+  seedDemoForVisitor().then((seeded) => seeded && render()).catch(() => {});
 }
+// Saving the first real meal clears the samples right away.
+onChange(() => { dropDemoIfRealMeals().catch(() => {}); });
 render();
 requestAnimationFrame(buildRefraction);
 window.addEventListener('resize', () => { clearTimeout(buildRefraction.t); buildRefraction.t = setTimeout(buildRefraction, 200); });
