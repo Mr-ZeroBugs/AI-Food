@@ -490,3 +490,5 @@ h1, h2, h3, .verdict, .slot-name, .num, .brand b { font-family: var(--font-head)
 .info-btn { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; color: inherit; }
 .info-btn .ic { width: 21px; height: 21px; }
 @media (max-width: 400px) { .tab { min-width: 72px; } }
+.btn-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.demo-tag { display: inline-block; font-size: 11px; font-weight: 600; line-height: 1; padding: 3px 6px; border-radius: 6px; background: var(--tint-soft); color: var(--good); vertical-align: 1px; margin-left: 4px; }

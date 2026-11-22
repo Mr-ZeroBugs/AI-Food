@@ -3,6 +3,7 @@
 import { scoreWord, TARGET } from './lib/plate.js';
 import { analyze, loadModel, modelStatus, onModelStatus, shrinkPhoto } from './lib/segment.js';
 import { allMeals, clearMeals, deleteMeal, getMeal, onChange, putMeal } from './lib/store.js';
+import { clearDemoHistory, hasDemoHistory, loadDemoHistory } from './lib/demo-history.js';
 
 const $view = document.getElementById('view');
 const $file = document.getElementById('file-input');
@@ -144,7 +145,7 @@ function mealRow(m) {
   else if (score === null) { h = timeLabel(m.createdAt); s = 'มีแต่ผลไม้หรือเครื่องดื่ม'; }
   else {
     const p = r.plate.ratio;
-    h = scoreWord(score);
+    h = scoreWord(score) + (m.demo ? '<span class="demo-tag">ตัวอย่าง</span>' : '');
     s = `${timeLabel(m.createdAt)} · <span class="num">ผัก ${Math.round(p.veg)} · แป้ง ${Math.round(p.carb)} · โปรตีน ${Math.round(p.protein)}</span>`;
   }
   return `<a class="meal-row" href="#/meal/${esc(m.id)}">
@@ -320,7 +321,7 @@ async function viewHistory() {
       <div class="days">${week.map((d) => `<div class="day${d.start === today ? ' today' : ''}">${d.avg ? plateSvg(d.avg.ratio, 38) : emptyPlate(38)}<span>${TH_D[new Date(d.start).getDay()]}</span></div>`).join('')}</div>
       ${wavg ? `<div><div class="verdict" style="font-size:17px">${scoreWord(wavg.score)}</div><div class="callout muted num">เฉลี่ย ${Math.round(wavg.score)} คะแนน จาก ${wavg.n} มื้อ</div></div>${shares(wavg.ratio)}`
         : `<div class="week-empty"><p class="callout muted">ยังไม่มีมื้อในสัปดาห์นี้ พอถ่ายแล้วแต่ละวันจะกลายเป็นจานเล็กๆ ตรงนี้ บอกสัดส่วนของวันนั้น</p>
-            <label class="btn" for="file-input">ถ่ายมื้อแรก</label></div>`}
+            <div class="btn-row"><label class="btn" for="file-input">ถ่ายมื้อแรก</label><button class="btn quiet" data-action="demo-load">ดูตัวอย่าง 3 วัน</button></div></div>`}
     </div>
     ${[...byDay.entries()].map(([d, list]) => { const a = average(list); return `<div class="section-label">${dayLabel(d)}${a ? ` · เฉลี่ย ${Math.round(a.score)}` : ''}</div><div class="group">${list.map(mealRow).join('')}</div>`; }).join('')}
   </div>`;
@@ -328,6 +329,7 @@ async function viewHistory() {
 
 async function viewAbout() {
   const n = (await allMeals()).length;
+  const demo = await hasDemoHistory();
   const s = modelStatus();
   return `<div class="page">
     <header class="title"><h1>เกี่ยวกับ</h1><p>KinWhy AI · เดโมบนเว็บ</p></header>
@@ -341,6 +343,8 @@ async function viewAbout() {
     <div class="group">
       <div class="row-link"><span>โมเดล</span><span class="end num">${s.state === 'ready' ? `${esc(s.version)} · ${s.threads} เธรด` : s.state === 'loading' ? 'กำลังโหลด' : 'ยังไม่ได้โหลด'}</span></div>
       <button class="row-link" data-action="clear" ${n ? '' : 'disabled style="opacity:.4"'}><span style="color:var(--danger);font-weight:600">ลบประวัติทั้งหมด</span><span class="end num">${n} มื้อ</span></button>
+      ${demo ? `<button class="row-link" data-action="demo-clear"><span>ลบประวัติตัวอย่าง</span><span class="end">เก็บมื้อของคุณไว้</span></button>`
+        : `<button class="row-link" data-action="demo-load"><span style="color:var(--tint);font-weight:600">ใส่ประวัติตัวอย่าง 3 วัน</span><span class="end">สำหรับดูเดโม</span></button>`}
     </div>
     <div class="section-label">จาน 2:1:1</div>
     ${targetCard()}
@@ -402,6 +406,13 @@ $view.addEventListener('click', async (e) => {
       if (confirm('ลบประวัติทั้งหมด? รูปและผลวิเคราะห์ในเครื่องนี้จะหายทั้งหมด กู้คืนไม่ได้')) { await clearMeals(); toast('ลบประวัติแล้ว'); }
       break;
     case 'retry-model': loadModel().catch(() => {}); render(); break;
+    case 'demo-load': {
+      const n = await loadDemoHistory();
+      toast(`ใส่ตัวอย่าง ${n} มื้อแล้ว`);
+      location.hash = '#/history';
+      break;
+    }
+    case 'demo-clear': await clearDemoHistory(); toast('ลบประวัติตัวอย่างแล้ว'); break;
   }
 });
 
@@ -467,6 +478,11 @@ function buildRefraction() {
 }
 
 // ---------- boot ----------
+// ?demo opens straight into a 3-day sample history (handy for showing the app to someone).
+if (new URLSearchParams(location.search).has('demo')) {
+  history.replaceState(null, '', location.pathname + '#/history');
+  loadDemoHistory().catch(() => {});
+}
 render();
 requestAnimationFrame(buildRefraction);
 window.addEventListener('resize', () => { clearTimeout(buildRefraction.t); buildRefraction.t = setTimeout(buildRefraction, 200); });
